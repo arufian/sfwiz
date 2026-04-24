@@ -21,6 +21,22 @@ Phase-3 PoC shipped. Single-file runnable TUI at `src/poc.tsx` (~1274 lines) usi
 - [x] Add a `.gitignore` entry for `docs/internal/` + `demo/vo*.wav` + `demo/voice-sample.wav`. (done — see `.gitignore`)
 - [x] Grep audit before `git init && git add`: `rg -n "/Users/|<author-username>"` must return zero hits in staged files.
 
+## TODO before flipping repo to public (submission day)
+
+Repo is **private** until submission. Flip to public via `gh repo edit arufian/sfwiz --visibility public --accept-visibility-change-consequences`. Do the flip **~24 h before the deadline, not at the deadline** — judges may check URLs early; a 404 = DQ risk.
+
+Pre-flip checklist:
+
+- [ ] **Full-history audit** (not just HEAD): `git log -p | rg -n "/Users/|<author-username>|<author-email-prefix>@"` returns 0 hits. If hits found, `git filter-repo` or squash before flipping.
+- [ ] **Secrets scan**: no `.env`, no `ANTHROPIC_API_KEY=sk-…`, no `sf` refresh tokens in any commit. `rg -n "sk-ant-|sk-proj-|AIza|xoxb-" $(git log --all --format=%H | head -50 | xargs -n1 git show --name-only)` style sweep.
+- [ ] **README exists** with quickstart + demo-video link (phase-6 artifact) + "Managed Agents architecture" pointer.
+- [ ] **Tag a stable release**: `git tag v0.1-hackathon-submit && git push origin v0.1-hackathon-submit` — gives judges a pinned SHA that can't drift.
+- [ ] **Fresh-clone sanity**: `git clone … /tmp/sfwiz-verify && cd /tmp/sfwiz-verify && bun install && bun run poc` — must launch without editing anything.
+- [ ] **Plan docs visibility decision**: `.gitignore` currently excludes `.claude/` — judges will NOT see phase plans, locked decisions, or the Managed-Agents architecture write-up. This directly hurts the **Best Managed Agents** prize ($5k) narrative, which is graded alongside code. Pick one:
+  - (a) Un-ignore `.claude/plan/` before the flip (simplest; exposes private planning prose — re-read for tone).
+  - (b) Copy the key plans to `docs/submission/*.md` (tracked): `managed-agents.md`, `architecture.md`, `locked-decisions.md`. Preferred — lets you curate for judges without dumping all planning noise.
+- [ ] **Incognito verify post-flip**: open the repo URL in a private-browser window immediately after flipping. Confirm public render. Confirm tagged release appears on Releases tab.
+
 ## Goal
 
 Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for the Salesforce ecosystem — to a hackathon with a demo video. Covers:
