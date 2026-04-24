@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+bun.lockb
+*.log
+
+# internal prior-art docs (kept out of public repo)
+docs/internal/
+demo/vo*.wav
+demo/voice-sample.wav
+progress.md
+
+# local user state (runtime)
+~/.sfwiz/
+
+# claude
+.claude/

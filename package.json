@@ -1,0 +1,23 @@
+{
+  "name": "sfwiz",
+  "version": "0.0.0-poc",
+  "private": true,
+  "type": "module",
+  "description": "Claude-Code-style TUI harness for the Salesforce ecosystem",
+  "scripts": {
+    "poc": "bun run src/poc.tsx",
+    "format": "biome format --write .",
+    "lint": "biome ci"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.102",
+    "@opentui/react": "^0.1.102",
+    "react": "^19.2.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^5.6.3"
+  }
+}
