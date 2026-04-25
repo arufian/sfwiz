@@ -49,8 +49,9 @@ export const Config = z.object({
       theme: z.enum(['auto', 'light', 'dark']).default('auto'),
       chordTimeoutMs: z.number().min(100).max(3000).default(800),
       reducedMotion: z.boolean().default(false),
+      bgColorIdx: z.number().int().min(0).max(5).default(0),
     })
-    .default(() => ({ theme: 'auto' as const, chordTimeoutMs: 800, reducedMotion: false })),
+    .default(() => ({ theme: 'auto' as const, chordTimeoutMs: 800, reducedMotion: false, bgColorIdx: 0 })),
   session: z
     .object({
       retentionDays: z.number().int().min(1).max(365).default(30),
@@ -76,5 +77,11 @@ export const Config = z.object({
     userAgent: 'sfwiz-learn/0.x',
     rateLimitPerHost: 1,
   })),
+  agent: z
+    .object({
+      thinkingMode: z.boolean().default(false),
+      maxToolRoundsPerTurn: z.number().int().min(1).max(100).default(20),
+    })
+    .default(() => ({ thinkingMode: false, maxToolRoundsPerTurn: 20 })),
 });
 export type Config = z.infer<typeof Config>;

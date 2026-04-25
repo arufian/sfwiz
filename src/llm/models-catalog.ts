@@ -31,3 +31,7 @@ export const ANTHROPIC_MODELS: ModelEntry[] = [
 ];
 
 export const DEFAULT_MODEL = 'claude-sonnet-4-6';
+
+export function pickDefaultModel(alias: 'opus' | 'sonnet' | 'haiku'): string {
+  return ANTHROPIC_MODELS.find((m) => m.alias === alias)?.id ?? DEFAULT_MODEL;
+}

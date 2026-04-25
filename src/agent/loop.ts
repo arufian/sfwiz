@@ -26,6 +26,8 @@ export interface AgentLoopOptions {
   client?: Anthropic;
   permissionMode?: PermissionMode;
   cwd?: string;
+  maxToolRoundsPerTurn?: number;
+  thinkingMode?: boolean;
   /**
    * Called when PermissionModeGuard says a tool can't be auto-allowed.
    * Resolve true to allow this single call, false to deny.
@@ -48,6 +50,8 @@ export class AgentLoop extends EventEmitter {
     toolName: string,
     args: Record<string, unknown>,
   ) => Promise<boolean>;
+  private readonly maxToolRounds: number;
+  private readonly thinkingMode: boolean;
   readonly tokenTracker = new TokenTracker();
 
   constructor(opts: AgentLoopOptions) {
@@ -63,6 +67,8 @@ export class AgentLoop extends EventEmitter {
       opts.cwd ?? process.cwd(),
     );
     this.onPermissionPrompt = opts.onPermissionPrompt ?? (async () => false);
+    this.maxToolRounds = opts.maxToolRoundsPerTurn ?? MAX_TOOL_ROUNDS;
+    this.thinkingMode = opts.thinkingMode ?? false;
   }
 
   override emit<K extends keyof AgentEventMap>(event: K, ...args: EmitArgs<K>): boolean {
@@ -101,7 +107,7 @@ export class AgentLoop extends EventEmitter {
     let round = 0;
     let finalText = '';
 
-    while (round < MAX_TOOL_ROUNDS) {
+    while (round < this.maxToolRounds) {
       if (this.abortController.signal.aborted) {
         throw new DOMException('AgentLoop aborted', 'AbortError');
       }
