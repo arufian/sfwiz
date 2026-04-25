@@ -44,15 +44,19 @@ export interface Tool<A extends ZodTypeAny = ZodTypeAny, R = unknown> {
 import { z as zod } from 'zod';
 
 export const AskUserOption = zod.object({
-  label: zod.string(),
-  description: zod.string(),
+  label: zod.string().min(1),
+  description: zod.string().default(''),
   preview: zod.string().optional(),
 });
 export type AskUserOption = zod.infer<typeof AskUserOption>;
 
 export const AskUserPayload = zod.object({
   question: zod.string().min(1),
-  header: zod.string().max(40),
+  header: zod
+    .string()
+    .min(1)
+    .max(80)
+    .transform((s) => (s.length > 40 ? `${s.slice(0, 37)}…` : s)),
   options: zod.array(AskUserOption).min(2).max(6),
   multiSelect: zod.boolean().default(false),
 });

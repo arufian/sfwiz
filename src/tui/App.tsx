@@ -514,6 +514,9 @@ export function App({
   const isSplash = blocks.length === 0;
 
   const inputRef = useRef<TextareaRenderable | null>(null);
+  /** Input value snapshot at palette open, used to restore on palette close
+   *  so leaked keypresses (e.g. "orgs" after a "/" palette trigger) are wiped. */
+  const inputSnapshotRef = useRef<string | null>(null);
   const loopRef = useRef<AgentLoop | null>(null);
   const toolInputsRef = useRef<Map<string, unknown>>(new Map());
   const conversationHistoryRef = useRef<MessageParam[]>([]);
@@ -1114,6 +1117,7 @@ export function App({
       setPaletteQuery('');
       setPaletteSel(0);
       inputRef.current?.setText('');
+      inputSnapshotRef.current = null;
 
       // Static toggles
       if (label === 'Auto Mode') {
@@ -1527,6 +1531,12 @@ export function App({
         setPaletteOpen(false);
         setPaletteQuery('');
         setPaletteSel(0);
+        // Restore the input field to its pre-open value so chars that leaked
+        // through `key.preventDefault()` (terminal emulator quirk) are wiped.
+        if (inputSnapshotRef.current !== null) {
+          inputRef.current?.setText(inputSnapshotRef.current);
+          inputSnapshotRef.current = null;
+        }
       },
       onUp: () => setPaletteSel((s) => Math.max(0, s - 1)),
       onDown: (matchCount) => setPaletteSel((s) => Math.max(0, Math.min(matchCount - 1, s + 1))),
@@ -1591,6 +1601,7 @@ export function App({
         setTrustSel(0);
       },
       onOpenPalette: () => {
+        inputSnapshotRef.current = inputRef.current?.plainText ?? '';
         setPaletteOpen(true);
         setPaletteSel(0);
       },
