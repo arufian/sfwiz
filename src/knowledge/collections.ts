@@ -37,7 +37,7 @@ export const COLLECTIONS: CollectionSpec[] = [
 
 /** List qmd collections registered on this machine. */
 export function listRegisteredCollections(): string[] {
-  const r = spawnSync('qmd', ['collection', 'list', '--json'], { encoding: 'utf8' });
+  const r = spawnSync('qmd', ['collection', 'list', '--json'], { encoding: 'utf8', timeout: 10_000 });
   if (r.error || r.status !== 0) return [];
   try {
     const parsed = JSON.parse(r.stdout) as { name: string }[] | { collections: { name: string }[] };
@@ -56,10 +56,10 @@ export function bootstrapCollections(qmdBin: string): void {
   for (const col of COLLECTIONS) {
     mkdirSync(col.dir, { recursive: true });
 
-    const existing = spawnSync(qmdBin, ['collection', 'show', col.name], { encoding: 'utf8' });
+    const existing = spawnSync(qmdBin, ['collection', 'show', col.name], { encoding: 'utf8', timeout: 10_000 });
     if (existing.status !== 0) {
       spawnSync(qmdBin, ['collection', 'add', col.name, col.dir, '--pattern', col.pattern], {
-        encoding: 'utf8',
+        encoding: 'utf8', timeout: 10_000,
       });
     }
   }

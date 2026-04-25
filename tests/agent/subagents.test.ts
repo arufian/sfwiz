@@ -84,8 +84,8 @@ describe('persona registry', () => {
     expect(getPersona('developer').executionMode).toBe('main-loop');
   });
 
-  test('all 5 personas defined', () => {
-    expect(Object.keys(PERSONA_REGISTRY)).toHaveLength(5);
+  test('all 6 personas defined', () => {
+    expect(Object.keys(PERSONA_REGISTRY)).toHaveLength(6);
   });
 });
 

@@ -1,9 +1,10 @@
 /** @jsxImportSource @opentui/react */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { watch } from 'chokidar';
 import type { FSWatcher } from 'chokidar';
 import { getSourceTrackingStatus, type TrackedFile } from '~/sf/source-tracking';
 import type { OrgHandle } from '~/tools/types';
+import { throttle } from '~/util/async';
 
 export type DirTreeEvent =
   | { kind: 'deploy'; path: string }
@@ -30,6 +31,7 @@ export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [selected, setSelected] = useState(0);
   const [watcher, setWatcher] = useState<FSWatcher | null>(null);
+  const throttledRefreshRef = useRef<ReturnType<typeof throttle> | null>(null);
 
   const refresh = useCallback(() => {
     if (!org) return;
@@ -38,6 +40,8 @@ export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
   }, [projectRoot, org]);
 
   useEffect(() => {
+    // Throttle to at most once per 3s — getSourceTrackingStatus runs spawnSync
+    throttledRefreshRef.current = throttle(refresh, 3_000);
     refresh();
 
     const w = watch(projectRoot, {
@@ -45,9 +49,10 @@ export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
       ignoreInitial: true,
       depth: 5,
     });
-    w.on('change', () => refresh());
-    w.on('add', () => refresh());
-    w.on('unlink', () => refresh());
+    const onFsChange = () => throttledRefreshRef.current?.();
+    w.on('change', onFsChange);
+    w.on('add', onFsChange);
+    w.on('unlink', onFsChange);
     setWatcher(w);
     return () => { w.close(); };
   }, [refresh, projectRoot]);

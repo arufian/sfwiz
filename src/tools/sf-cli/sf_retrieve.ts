@@ -19,7 +19,7 @@ export const sfRetrieve: Tool<typeof Params> = {
     const result = spawnSync(
       'sf',
       ['project', 'retrieve', 'start', '--metadata', args.metadata.join(','), '--target-org', org, '--json'],
-      { cwd: projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+      { cwd: projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 120_000 },
     );
     if (result.error) throw result.error;
     return JSON.parse(result.stdout || '{}') as unknown;

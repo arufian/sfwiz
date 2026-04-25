@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 const PERSONAS_DIR = join(import.meta.dir, '../../resources/personas');
 const REFERENCES_DIR = join(import.meta.dir, '../../resources/references');
 
-const EXPECTED_PERSONAS = ['designer', 'developer', 'reviewer', 'qa', 'deploy-manager'];
+const EXPECTED_PERSONAS = ['org-admin', 'designer', 'developer', 'reviewer', 'qa', 'deploy-manager'];
 const EXPECTED_REFERENCES = [
   'governor-limits', 'lwc-patterns', 'soql-guide', 'apex-testing',
   'scratch-org-workflow', 'security-checklist', 'metadata-types',
@@ -14,7 +14,7 @@ const EXPECTED_REFERENCES = [
 ];
 
 describe('persona markdown files', () => {
-  test('all 5 persona files exist', () => {
+  test('all 6 persona files exist', () => {
     const files = readdirSync(PERSONAS_DIR).map((f) => f.replace('.md', ''));
     for (const name of EXPECTED_PERSONAS) {
       expect(files).toContain(name);

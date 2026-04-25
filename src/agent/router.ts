@@ -3,13 +3,13 @@ import type { MessageParam } from '@anthropic-ai/sdk/resources';
 import { runSubagent } from '~/agent/subagents';
 import { z } from 'zod';
 
-export type PersonaName = 'designer' | 'developer' | 'deploy-manager' | 'reviewer' | 'qa';
+export type PersonaName = 'org-admin' | 'designer' | 'developer' | 'deploy-manager' | 'reviewer' | 'qa';
 
 /** Personas that run via the main AgentLoop (streaming @anthropic-ai/sdk). */
 const MAIN_LOOP_PERSONAS = new Set<PersonaName>(['designer', 'developer', 'deploy-manager']);
 
 /** Personas that run as isolated claude-agent-sdk subagents. */
-const SUBAGENT_PERSONAS = new Set<PersonaName>(['reviewer', 'qa']);
+const SUBAGENT_PERSONAS = new Set<PersonaName>(['org-admin', 'reviewer', 'qa']);
 
 export const ReviewerOutputSchema = z.object({
   issues: z.array(z.object({
@@ -35,6 +35,14 @@ export const QaOutputSchema = z.object({
 });
 export type QaOutput = z.infer<typeof QaOutputSchema>;
 
+export const OrgAdminOutputSchema = z.object({
+  operation: z.string(),
+  before: z.string(),
+  after: z.string(),
+  warnings: z.array(z.string()),
+});
+export type OrgAdminOutput = z.infer<typeof OrgAdminOutputSchema>;
+
 export interface RouteOptions {
   persona: PersonaName;
   prompt: string;
@@ -44,6 +52,7 @@ export interface RouteOptions {
 }
 
 export type RouteResult =
+  | { persona: 'org-admin'; output: OrgAdminOutput; sessionId: string | null }
   | { persona: 'reviewer'; output: ReviewerOutput; sessionId: string | null }
   | { persona: 'qa'; output: QaOutput; sessionId: string | null }
   | { persona: 'designer' | 'developer' | 'deploy-manager'; output: string };
@@ -58,6 +67,18 @@ export async function route(
   mainLoop?: AgentLoop,
 ): Promise<RouteResult> {
   if (SUBAGENT_PERSONAS.has(opts.persona)) {
+    if (opts.persona === 'org-admin') {
+      const result = await runSubagent({
+        name: 'org-admin',
+        prompt: opts.prompt,
+        inputs: opts.inputs,
+        outputSchema: OrgAdminOutputSchema,
+        cwd: opts.cwd,
+        abortController: opts.abortController,
+      });
+      return { persona: 'org-admin', output: result.output, sessionId: result.sessionId };
+    }
+
     if (opts.persona === 'reviewer') {
       const result = await runSubagent({
         name: 'reviewer',

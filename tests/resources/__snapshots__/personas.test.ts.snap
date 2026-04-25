@@ -5,6 +5,7 @@ exports[`hash drift detection sha256 of each persona file is stable (snapshot) 1
   "deploy-manager": "78250ca9a4c0dec5",
   "designer": "bbb5efa180b10635",
   "developer": "dfb95b13a24c2a25",
+  "org-admin": "fe232606d8c31657",
   "qa": "24b616e34a4c8583",
   "reviewer": "ba7b5133b845963a",
 }

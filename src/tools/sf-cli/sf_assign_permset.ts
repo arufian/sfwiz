@@ -23,7 +23,7 @@ export const sfAssignPermset: Tool<typeof Params> = {
     const result = spawnSync(
       'sf',
       ['org', 'assign', 'permset', '--name', args.name, '--target-org', org, '--json', ...extra],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024 },
+      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 60_000 },
     );
     if (result.error) throw result.error;
     return JSON.parse(result.stdout || '{}') as unknown;

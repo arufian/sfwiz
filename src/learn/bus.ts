@@ -26,7 +26,19 @@ export interface InstallProgressEvent {
   message: string;
 }
 
-export type LearnEvent = EmbedProgressEvent | EmbedDoneEvent | EmbedErrorEvent | InstallProgressEvent;
+export interface SubagentSpawnEvent {
+  kind: 'subagent:spawn';
+  name: string;
+}
+
+export interface SubagentDoneEvent {
+  kind: 'subagent:done';
+  name: string;
+  numTurns: number;
+  totalCostUsd: number;
+}
+
+export type LearnEvent = EmbedProgressEvent | EmbedDoneEvent | EmbedErrorEvent | InstallProgressEvent | SubagentSpawnEvent | SubagentDoneEvent;
 
 export type LearnEventKind = LearnEvent['kind'];
 

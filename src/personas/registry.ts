@@ -12,6 +12,19 @@ export interface PersonaConfig {
 }
 
 export const PERSONA_REGISTRY: Record<PersonaName, PersonaConfig> = {
+  'org-admin': {
+    name: 'org-admin',
+    displayName: 'Org Admin',
+    model: 'claude-sonnet-4-6',
+    executionMode: 'subagent',
+    systemPromptFile: 'resources/personas/org-admin.md',
+    agentDefinition: {
+      description: 'Manages Salesforce org settings, users, profiles, permissions, and sharing rules.',
+      prompt: 'You are a Salesforce org administrator. Always confirm before changes. Output structured JSON.',
+      model: 'claude-sonnet-4-6',
+      tools: ['Read', 'Bash'],
+    },
+  },
   designer: {
     name: 'designer',
     displayName: 'Designer',

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { spawnSync } from 'child_process';
+import { unlinkSync, existsSync } from 'fs';
 import type { Tool, ToolContext } from '~/tools/types';
 
 const Params = z.object({
@@ -15,7 +16,6 @@ export const sfApexRunAnonymous: Tool<typeof Params> = {
     const org = args.targetOrg ?? ctx.org?.username;
     if (!org) throw new Error('No active org.');
 
-    // Write apex code to temp file (sf apex run reads from --file)
     const tmpFile = `/tmp/sfwiz-apex-${Date.now()}.apex`;
     await Bun.write(tmpFile, args.apexCode);
 
@@ -23,14 +23,12 @@ export const sfApexRunAnonymous: Tool<typeof Params> = {
       const result = spawnSync(
         'sf',
         ['apex', 'run', '--target-org', org, '--file', tmpFile, '--json'],
-        { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024 },
+        { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 60_000 },
       );
       if (result.error) throw result.error;
       return JSON.parse(result.stdout || '{}') as unknown;
     } finally {
-      await Bun.file(tmpFile).exists().then((exists) => {
-        if (exists) return Bun.write(tmpFile, ''); // clear sensitive code
-      });
+      if (existsSync(tmpFile)) unlinkSync(tmpFile);
     }
   },
 };

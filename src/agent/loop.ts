@@ -62,6 +62,16 @@ export class AgentLoop extends EventEmitter {
    * - Applies 4-breakpoint prompt caching (Opus H3).
    */
   async run(initialMessages: MessageParam[]): Promise<string> {
+    try {
+      return await this._runInner(initialMessages);
+    } catch (err) {
+      // Emit turn:done('') so TUI clears the thinking/streaming indicator on fatal errors.
+      this.emit('turn:done', '');
+      throw err;
+    }
+  }
+
+  private async _runInner(initialMessages: MessageParam[]): Promise<string> {
     const messages: MessageParam[] = [...initialMessages];
     const systemBlocks = buildCachedSystem(this.systemPrompt);
     const toolDefs = buildCachedToolDefs(this.tools);
@@ -206,3 +216,4 @@ export class AgentLoop extends EventEmitter {
     return finalText;
   }
 }
+

@@ -35,6 +35,16 @@ Be thorough but concise. Focus on: governor limits, SOQL in loops, test coverage
   tools: ['Read', 'Glob', 'Grep'],
 };
 
+/** Org Admin subagent: manages org settings, users, permissions. Uses Sonnet 4.6. */
+export const ORG_ADMIN_AGENT: AgentDefinition = {
+  description: 'Manages Salesforce org settings, users, profiles, permissions, and sharing rules.',
+  prompt: `You are a Salesforce org administrator.
+Your output MUST be valid JSON: { "operation": string, "before": string, "after": string, "warnings": string[] }
+Always confirm via ask_user before making changes. Prefer sf_query to read current state first.`,
+  model: 'claude-sonnet-4-6',
+  tools: ['Read', 'Bash'],
+};
+
 /** QA subagent: can run tests via Bash, uses Sonnet 4.6. */
 export const QA_AGENT: AgentDefinition = {
   description: 'Runs Salesforce Apex test suite and reports coverage results.',
@@ -46,6 +56,7 @@ Output MUST be valid JSON: { "passed": number, "failed": number, "coverage": num
 };
 
 const AGENT_DEFINITIONS: Record<string, AgentDefinition> = {
+  'org-admin': ORG_ADMIN_AGENT,
   reviewer: REVIEWER_AGENT,
   qa: QA_AGENT,
 };
@@ -97,13 +108,7 @@ export async function runSubagent<TOut = unknown>(
   let totalCostUsd = 0;
   let rawResult: string | null = null;
 
-  // Emit subagent:spawn event for TUI observability (Best Managed Agents prize)
-  learnBus.emit('install:progress', {
-    kind: 'install:progress',
-    step: 0,
-    total: 1,
-    message: `[subagent] ${opts.name} spawned`,
-  });
+  learnBus.emit('subagent:spawn', { kind: 'subagent:spawn', name: opts.name });
 
   for await (const msg of q) {
     const m = msg as SDKMessage;
@@ -119,6 +124,8 @@ export async function runSubagent<TOut = unknown>(
       if (!r.is_error) rawResult = r.result;
     }
   }
+
+  learnBus.emit('subagent:done', { kind: 'subagent:done', name: opts.name, numTurns, totalCostUsd });
 
   if (rawResult === null) throw new Error(`Subagent "${opts.name}" returned no result`);
 

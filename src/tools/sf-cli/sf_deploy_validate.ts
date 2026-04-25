@@ -17,7 +17,7 @@ export const sfDeployValidate: Tool<typeof Params> = {
     const result = spawnSync(
       'sf',
       ['project', 'deploy', 'validate', '--target-org', org, '--test-level', args.testLevel, '--json'],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 300_000 },
     );
     if (result.error) throw result.error;
     return JSON.parse(result.stdout || '{}') as unknown;
