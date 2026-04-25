@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. 190 tests pass, 0 TypeScript errors. Binary: `dist/sfwiz` (65.6 MB). Tagged `v0.1.0`.**
+**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. 190 tests pass, 0 TypeScript errors. Binary: `dist/sfwiz` (65.6 MB).**
 
-Phase 4 fully shipped. M1–M18 tagged (`m01`–`m18`, `v0.1.0`). Key deliverables by milestone:
+Phase 4 fully shipped. Key deliverables by milestone:
 - **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tests/sanity.test.ts`, H4 smoke test
 - **M2**: Zod schemas — `src/config/schema.ts`, `src/personas/types.ts`, `src/session/types.ts`, `src/scraper/types.ts`, `src/tools/types.ts`
 - **M3**: AgentLoop — `src/llm/client.ts`, `src/agent/cache-hints.ts` (4-breakpoint), `src/agent/loop.ts` (streaming tool-use), H2 mock-fetch SSE guard
@@ -44,12 +44,11 @@ Pre-flip checklist:
 - [ ] **Full-history audit** (not just HEAD): `git log -p | rg -n "/Users/|<author-username>|<author-email-prefix>@"` returns 0 hits. If hits found, `git filter-repo` or squash before flipping.
 - [ ] **Secrets scan**: no `.env`, no `ANTHROPIC_API_KEY=sk-…`, no `sf` refresh tokens in any commit. `rg -n "sk-ant-|sk-proj-|AIza|xoxb-" $(git log --all --format=%H | head -50 | xargs -n1 git show --name-only)` style sweep.
 - [ ] **README exists** with quickstart + demo-video link (phase-6 artifact).
-- [ ] **Tag a stable release**: `git tag v0.1-hackathon-submit && git push origin v0.1-hackathon-submit` — gives judges a pinned SHA that can't drift.
 - [ ] **Fresh-clone sanity**: `git clone … /tmp/sfwiz-verify && cd /tmp/sfwiz-verify && bun install && bun run poc` — must launch without editing anything.
 - [ ] **Plan docs visibility decision**: `.gitignore` currently excludes `.claude/` — judges will NOT see phase plans or locked decisions. Pick one:
   - (a) Un-ignore `.claude/plan/` before the flip (simplest; exposes private planning prose — re-read for tone).
   - (b) Copy the key plans to `docs/submission/*.md` (tracked): `architecture.md`, `locked-decisions.md`. Preferred — lets you curate for judges without dumping all planning noise.
-- [ ] **Incognito verify post-flip**: open the repo URL in a private-browser window immediately after flipping. Confirm public render. Confirm tagged release appears on Releases tab.
+- [ ] **Incognito verify post-flip**: open the repo URL in a private-browser window immediately after flipping. Confirm public render.
 
 ## Goal
 
@@ -66,7 +65,7 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 
 **Phases 1–4 COMPLETE. Next: Phase 6 (Video) — demo recording + submission.**
 
-All 18 milestones shipped and tagged. Binary verified at `dist/sfwiz` (65.6 MB, darwin-arm64). 190 tests pass, 0 TypeScript errors.
+All 18 milestones shipped. Binary verified at `dist/sfwiz` (65.6 MB, darwin-arm64). 190 tests pass, 0 TypeScript errors.
 
 Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo script + recording checklist. Then do submission-day prep (README demo-link update, repo flip).
 
@@ -78,7 +77,7 @@ Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo s
 | 1 Research       | done                       | `.claude/plan/phase-1-research.md`       | read once to absorb prior-art + 18 locked decisions                     |
 | 2 Planning       | done                       | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session            |
 | 3 PoC (UI only)  | done (opentui)             | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1   |
-| 4 Implementation | **DONE** (M1–M18)          | `.claude/plan/phase-4-implementation.md` | all milestones shipped; tagged m01–m18 + v0.1.0                        |
+| 4 Implementation | **DONE** (M1–M18)          | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                  |
 | 5 Test           | ready                      | `.claude/plan/phase-5-test.md`           | runs after each milestone, not at end                                   |
 | 6 Video          | ready                      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
 | —                | —                          | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                    |
@@ -119,13 +118,9 @@ git commit -m "phase-N: <short description>"
 
 # 2. push
 git push origin main
-
-# 3. tag completed phase
-git tag phase-N-done
-git push origin phase-N-done
 ```
 
-For Phase 4 (18 milestones), commit + push after **each milestone** (`m01` through `m18`), plus tag completed milestones. Not a single phase-4 commit.
+For Phase 4 (18 milestones), commit + push after **each milestone** (`m01` through `m18`). Not a single phase-4 commit.
 
 Rules:
 
@@ -201,7 +196,7 @@ For multi-step tasks, state a brief plan with verify steps before coding.
 3. **Tool-use integration test FIRST** in M3 (`tests/agent/loop.integration.test.ts`). Guards the tool-schema-forwarding bug observed in a prior prototype (LLM SDK silently dropped the `tools` array on the outgoing request).
 4. **Reviewer persona read-only.** Tool-scope strictly `ask_user`, `read_file`, `list_files`, `grep`, `sf_query`, `sf_sobject_describe`, `qmd_query`.
 5. **Streaming mandatory from M3.** `anthropic.messages.stream()` for the orchestrator; `query()` async generator for persona subagents. Never the non-streaming `messages.create()` for interactive turns.
-6. **Zero-config happy path**: if `sf` is logged in and `ANTHROPIC_API_KEY` set, `sfwiz` must work without further prompts (except first-run wizard).
+6. **TUI-first API key flow**: there is no `.env` quickstart and no expected env var. On first launch sfwiz prompts for the Anthropic API key inside the TUI and persists it to `~/.sfwiz/config.json` (chmod 600). Rotation/provider switch happens via `/provider` (alias `/api-key`). `process.env.ANTHROPIC_API_KEY` is still honored as a dev-only fallback inside `getAnthropicClient()` but must not appear in user-facing docs.
 7. **Every Zod schema gets a malformed-input test.** Phase-5 §2.
 
 ## Commands
