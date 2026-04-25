@@ -43,6 +43,7 @@ export const runCommandTool: Tool = {
       const child = spawn(command, args, {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env },
       });
       let stdout = '';
       let stderr = '';
@@ -105,7 +106,14 @@ export const runCommandTool: Tool = {
           return;
         }
         if (code !== 0) {
-          reject(new Error(`Command failed (exit ${code ?? 'null'}):\n${output}`));
+          const trimmed = output.trim();
+          if (trimmed) {
+            // Has output → partial success (e.g. sf org list with some expired orgs).
+            // Resolve so agent sees the data; annotate with exit code.
+            resolve(`${trimmed}\n[exit ${code ?? 'null'}]`);
+          } else {
+            reject(new Error(`Command failed (exit ${code ?? 'null'})`));
+          }
           return;
         }
         resolve(output.trim());
