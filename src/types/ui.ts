@@ -32,7 +32,7 @@ export type ChatBlock =
 export type PermissionMode = 'ask' | 'auto-edit' | 'yolo';
 export const PERMISSION_MODES: PermissionMode[] = ['ask', 'auto-edit', 'yolo'];
 
-export type SideView = 'persona' | 'tests' | 'soql' | 'knowledge' | 'deploy';
+export type SideView = 'persona' | 'tests' | 'soql' | 'knowledge' | 'deploy' | 'tokens';
 
 export interface PaletteEntry {
   id: string;

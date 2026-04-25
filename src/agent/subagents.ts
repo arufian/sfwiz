@@ -6,7 +6,13 @@ import type {
   SDKSystemMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { z } from 'zod';
+import type { PersonaName } from '~/agent/router';
 import { learnBus } from '~/learn/bus';
+import { pickDefaultModel } from '~/llm/models-catalog';
+import { checkPersonaGate } from '~/personas/gate';
+
+const SONNET = pickDefaultModel('sonnet');
+const OPUS = pickDefaultModel('opus');
 
 /** Query function type for dependency injection (test stubs override `query`). */
 type QueryFn = typeof query;
@@ -48,7 +54,7 @@ export const REVIEWER_AGENT: AgentDefinition = {
   prompt: `You are a senior Salesforce architect reviewing code changes.
 Your output MUST be valid JSON matching: { "issues": [{ "severity": "error"|"warning"|"info", "file": string, "line"?: number, "message": string }], "summary": string, "approved": boolean }
 Be thorough but concise. Focus on: governor limits, SOQL in loops, test coverage, security (CRUD/FLS), LWC anti-patterns.`,
-  model: 'claude-opus-4-7',
+  model: OPUS,
   tools: ['Read', 'Glob', 'Grep'],
 };
 
@@ -58,7 +64,7 @@ export const ORG_ADMIN_AGENT: AgentDefinition = {
   prompt: `You are a Salesforce org administrator.
 Your output MUST be valid JSON: { "operation": string, "before": string, "after": string, "warnings": string[] }
 Always confirm via ask_user before making changes. Prefer sf_query to read current state first.`,
-  model: 'claude-sonnet-4-6',
+  model: SONNET,
   tools: ['Read', 'Glob', 'Grep', 'Bash'],
 };
 
@@ -68,7 +74,7 @@ export const QA_AGENT: AgentDefinition = {
   prompt: `You are a QA engineer running Apex tests in a Salesforce org.
 Run: sf apex run test --target-org <org> --test-level RunLocalTests --code-coverage --json
 Output MUST be valid JSON: { "passed": number, "failed": number, "coverage": number, "failures": [{ "class": string, "method": string, "message": string }] }`,
-  model: 'claude-sonnet-4-6',
+  model: SONNET,
   tools: ['Read', 'Bash'],
 };
 
@@ -79,7 +85,7 @@ export const DESIGNER_AGENT: AgentDefinition = {
   prompt: `You are a Salesforce solution architect drafting design proposals.
 Output a structured plan as plain text: problem statement, proposed sObject changes, page-layout / record-type implications, automation choices (Flow vs Apex), permission/sharing impact, open risks.
 You may read files but never edit. Hand off to developer for implementation.`,
-  model: 'claude-opus-4-7',
+  model: OPUS,
   tools: ['Read', 'Glob', 'Grep'],
 };
 
@@ -90,7 +96,7 @@ export const DEVELOPER_AGENT: AgentDefinition = {
   prompt: `You are a Salesforce developer.
 Implement the requested change with minimal scope. Match existing project style. Run/build via Bash only when explicitly required.
 Return a short summary: files touched, key decisions, and a one-line handoff for reviewer/qa.`,
-  model: 'claude-sonnet-4-6',
+  model: SONNET,
   tools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'],
 };
 
@@ -101,7 +107,7 @@ export const DEPLOY_MANAGER_AGENT: AgentDefinition = {
   prompt: `You are a Salesforce deployment manager.
 Always confirm the destructive operation with the user before invoking sf project deploy start.
 Return a short summary: target org, package paths, dry-run preview vs final outcome.`,
-  model: 'claude-sonnet-4-6',
+  model: SONNET,
   tools: ['Read', 'Bash'],
 };
 
@@ -139,8 +145,27 @@ export async function runSubagent<TOut = unknown>(
       cwd: opts.cwd ?? process.cwd(),
       abortController: opts.abortController,
       persistSession: false,
-      // PostToolUse hook: write audit entry per Edit/Write call
+      // PreToolUse: persona gate — deny tools blocked for the persona.
+      // PostToolUse: audit each Edit/Write call.
       hooks: {
+        PreToolUse: [
+          {
+            hooks: [
+              async (input) => {
+                const toolName = (input as { tool_name?: string }).tool_name ?? '';
+                const gate = checkPersonaGate(opts.name as PersonaName, toolName);
+                if (!gate.allowed) {
+                  return {
+                    continue: false,
+                    decision: 'block',
+                    stopReason: gate.reason ?? 'persona gate denied tool',
+                  };
+                }
+                return { continue: true };
+              },
+            ],
+          },
+        ],
         PostToolUse: [
           {
             hooks: [

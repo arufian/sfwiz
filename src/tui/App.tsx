@@ -5,12 +5,13 @@ import { useKeyboard, useTerminalDimensions } from '@opentui/react';
 /** @jsxImportSource @opentui/react */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { AgentLoop } from '~/agent/loop';
 import { loadConfig } from '~/config/load';
 import { defaultConfig } from '~/config/load';
 import { saveConfig } from '~/config/save';
 import { TrustStore } from '~/config/trust';
-import { bootstrapCollections, COLLECTIONS } from '~/knowledge/collections';
+import { COLLECTIONS, bootstrapCollections } from '~/knowledge/collections';
 import { detectQmd } from '~/knowledge/detect';
 import { runEmbed } from '~/knowledge/embed';
 import { installQmd } from '~/knowledge/qmd-install';
@@ -21,17 +22,29 @@ import type {
   EmbedProgressEvent,
   InstallProgressEvent,
 } from '~/learn/bus';
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { initAnthropicClient, resetAnthropicClient, resolveApiKey } from '~/llm/client';
-import { listAvailableModels, type ModelChoice } from '~/llm/list-models';
+import { type ModelChoice, listAvailableModels } from '~/llm/list-models';
 import { ANTHROPIC_MODELS, pickDefaultModel } from '~/llm/models-catalog';
-import type { AskUserPayload, AskUserResult } from '~/tools/types';
 import { listOrgs } from '~/sf/auth';
+import type { AskUserPayload, AskUserResult, OrgHandle } from '~/tools/types';
 import type { OrgSummary } from '~/ui/panels/SidePanel';
 
+import { PermissionStore } from '~/config/permissions';
+import { initProject } from '~/dispatcher/commands/init';
+import { knowledgeCommand } from '~/dispatcher/commands/knowledge';
+import { learnCommand, setLearnWorkerHandle } from '~/dispatcher/commands/learn';
 import { loginCommand } from '~/dispatcher/commands/login';
 import { orgsCommand } from '~/dispatcher/commands/orgs';
+import {
+  appendBlock,
+  formatSessionsMessage,
+  listSessionsForCwd,
+  newSessionId,
+  readBlocks,
+  touchSession,
+} from '~/dispatcher/commands/sessions';
 import { COMMAND_REGISTRY, getAllPaletteLabels } from '~/dispatcher/registry';
+import { startLearnWorker } from '~/learn/launcher';
 import { DirTree } from '~/tui/layout/DirTree';
 import { StatusBar as LiveStatusBar } from '~/tui/layout/StatusBar';
 import { ApiKeySetup } from '~/tui/overlays/ApiKeySetup';
@@ -45,11 +58,11 @@ import {
   type PermissionDecision,
   PermissionPrompt,
 } from '~/tui/overlays/PermissionPrompt';
-import { PermissionStore } from '~/config/permissions';
 import { PROVIDERS, ProviderPicker } from '~/tui/overlays/ProviderPicker';
 import { type EmbedRow, EmbedScreen } from '~/tui/setup/EmbedScreen';
 import { QmdScreen, type QmdSubPhase } from '~/tui/setup/QmdScreen';
 import { SetupChrome } from '~/tui/setup/SetupChrome';
+import { getBgColor } from '~/ui/theme';
 import { fuzzyFilter } from '~/util/fuzzy';
 
 import type { ChatBlock, PermissionMode, SideView } from '~/types/ui';
@@ -62,6 +75,11 @@ import { ChatPanel, SplashView, pickSplashTip } from '~/ui/panels/ChatPanel';
 import { InputLine } from '~/ui/panels/InputLine';
 import { SidePanel } from '~/ui/panels/SidePanel';
 import { ToastBar } from '~/ui/panels/ToastBar';
+import type { DeployData } from '~/ui/side/DeployView';
+import type { KnowledgeData, KnowledgeRow } from '~/ui/side/KnowledgeView';
+import type { SoqlData } from '~/ui/side/SoqlView';
+import type { TestsData } from '~/ui/side/TestsView';
+import type { TokensBreakdown } from '~/ui/side/TokensView';
 
 import { editFileTool } from '~/tools/fs/edit_file';
 import { grepTool } from '~/tools/fs/grep';
@@ -83,10 +101,20 @@ import { runCommandTool } from '~/tools/shell/run_command';
 
 const TRUST_PATH = join(homedir(), '.sfwiz', 'trusted-workspaces.json');
 const PERMISSIONS_PATH = join(homedir(), '.sfwiz', 'permissions.json');
-const SIDE_VIEWS: SideView[] = ['persona', 'tests', 'soql', 'knowledge', 'deploy'];
+const SIDE_VIEWS: SideView[] = ['persona', 'tests', 'soql', 'knowledge', 'deploy', 'tokens'];
 
 function isValidAnthropicKey(key: string): boolean {
   return key.startsWith('sk-ant-') || key.startsWith('sk-proj-');
+}
+
+/** Reduce restored ChatBlock[] back into MessageParam[] for the agent loop. */
+function blocksToMessages(blocks: ChatBlock[]): MessageParam[] {
+  const msgs: MessageParam[] = [];
+  for (const b of blocks) {
+    if (b.kind === 'user') msgs.push({ role: 'user', content: b.text });
+    else if (b.kind === 'assistant') msgs.push({ role: 'assistant', content: b.text });
+  }
+  return msgs;
 }
 
 function permissionKey(toolName: string, args: Record<string, unknown>): string {
@@ -128,6 +156,85 @@ function shortDoneSummary(toolName: string, result: unknown): string {
     return oneLine.length > 80 ? `${oneLine.slice(0, 77)}…` : oneLine || 'done';
   }
   return 'done';
+}
+
+function safeParseJson(s: unknown): unknown {
+  if (typeof s !== 'string') return s;
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+function parseDeployResult(result: unknown): DeployData | null {
+  const obj = safeParseJson(result);
+  if (!obj || typeof obj !== 'object') return null;
+  const r = obj as Record<string, unknown>;
+  const status = (r.status as string | undefined) ?? (r.success === true ? 'success' : 'failed');
+  const elapsedMs = typeof r.elapsedMs === 'number' ? r.elapsedMs : 0;
+  const errorsRaw = Array.isArray(r.errors) ? r.errors : [];
+  const errors = errorsRaw.flatMap((e): { component: string; message: string }[] => {
+    if (typeof e === 'string') return [{ component: '', message: e }];
+    if (e && typeof e === 'object') {
+      const obj = e as Record<string, unknown>;
+      const component =
+        (obj.component as string) ?? (obj.fileName as string) ?? (obj.name as string) ?? '';
+      const message =
+        (obj.problem as string) ?? (obj.message as string) ?? (obj.error as string) ?? '';
+      return [{ component, message }];
+    }
+    return [];
+  });
+  const normStatus: DeployData['status'] =
+    status === 'success' || status === 'partial' || status === 'failed' ? status : 'failed';
+  return { status: normStatus, elapsedMs, errors };
+}
+
+function parseTestsResult(result: unknown): TestsData | null {
+  const obj = safeParseJson(result);
+  if (!obj || typeof obj !== 'object') return null;
+  const r = obj as Record<string, unknown>;
+  const summary = (r.summary as Record<string, unknown> | undefined) ?? r;
+  const passed = Number(summary.passing ?? summary.passed ?? 0);
+  const failed = Number(summary.failing ?? summary.failed ?? 0);
+  const coveragePct = Math.round(
+    Number(summary.testRunCoverage ?? summary.coverage ?? summary.orgWideCoverage ?? 0),
+  );
+  const failuresRaw = Array.isArray(r.tests)
+    ? (r.tests as Record<string, unknown>[]).filter((t) => t.Outcome === 'Fail')
+    : Array.isArray(r.failures)
+      ? (r.failures as Record<string, unknown>[])
+      : [];
+  const failures = failuresRaw.map((t) => ({
+    class: String(t.ApexClass ?? t.class ?? ''),
+    method: String(t.MethodName ?? t.method ?? ''),
+    message: String(t.Message ?? t.message ?? ''),
+  }));
+  return { ranAt: Date.now(), passed, failed, coveragePct, failures };
+}
+
+function parseSoqlResult(input: unknown, result: unknown): SoqlData | null {
+  const inObj = (input ?? {}) as Record<string, unknown>;
+  const soql = String(inObj.soql ?? inObj.query ?? '');
+  if (!soql) return null;
+  const obj = safeParseJson(result);
+  if (!obj || typeof obj !== 'object') {
+    return { soql, totalSize: 0, rows: [], error: typeof result === 'string' ? result : 'error' };
+  }
+  const r = obj as Record<string, unknown>;
+  const totalSize = Number(r.totalSize ?? (Array.isArray(r.records) ? r.records.length : 0));
+  const recs = Array.isArray(r.records) ? (r.records as Record<string, unknown>[]) : [];
+  const rows = recs.slice(0, 20).map((rec) => {
+    const id = String(rec.Id ?? '').slice(0, 6);
+    const rest = Object.entries(rec)
+      .filter(([k]) => k !== 'Id' && k !== 'attributes')
+      .slice(0, 3)
+      .map(([_, v]) => String(v ?? ''))
+      .join(' · ');
+    return id ? `${id}… ${rest}` : rest;
+  });
+  return { soql, totalSize, rows };
 }
 
 function modelSummaryFromId(
@@ -400,8 +507,13 @@ export function App({
 
   const inputRef = useRef<TextareaRenderable | null>(null);
   const loopRef = useRef<AgentLoop | null>(null);
+  const toolInputsRef = useRef<Map<string, unknown>>(new Map());
   const conversationHistoryRef = useRef<MessageParam[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+
+  // Per-cwd session id. Generated lazily on first persisted block.
+  const sessionIdRef = useRef<string>(newSessionId(cwd));
+  const lastPersistedBlockCountRef = useRef<number>(0);
 
   // Live side-panel state (replaces static fixture).
   const [currentModelId, setCurrentModelId] = useState<string | null>(
@@ -412,6 +524,24 @@ export function App({
     estimatedCostUsd: 0,
   });
   const [currentOrg, setCurrentOrg] = useState<OrgSummary | null>(null);
+  const [currentOrgHandle, setCurrentOrgHandle] = useState<OrgHandle | null>(null);
+
+  // Side-panel live data (populated from agent tool:done events).
+  const [deployData, setDeployData] = useState<DeployData | null>(null);
+  const [testsData, setTestsData] = useState<TestsData | null>(null);
+  const [soqlData, setSoqlData] = useState<SoqlData | null>(null);
+  const [tokensBreakdown, setTokensBreakdown] = useState<TokensBreakdown | null>(null);
+  const [learnWorkerStatus, setLearnWorkerStatus] = useState<string>('idle');
+  const [learnWorkerLastRun, setLearnWorkerLastRun] = useState<number | null>(null);
+
+  // Toggleable preferences (palette: Thinking Mode / Background Color / Reduced Motion).
+  const [thinkingMode, setThinkingMode] = useState<boolean>(
+    () => loadConfig()?.agent?.thinkingMode === true,
+  );
+  const [bgColorIdx, setBgColorIdx] = useState<number>(() => loadConfig()?.tui?.bgColorIdx ?? 0);
+  const [reducedMotion, setReducedMotion] = useState<boolean>(
+    () => loadConfig()?.tui?.reducedMotion === true,
+  );
 
   const refreshOrg = useCallback(async () => {
     try {
@@ -421,6 +551,12 @@ export function App({
         setCurrentOrg({
           alias: defaultOrg.alias ?? defaultOrg.username,
           status: defaultOrg.connectedStatus === 'active' ? 'connected' : 'disconnected',
+        });
+        setCurrentOrgHandle({
+          alias: defaultOrg.alias ?? defaultOrg.username,
+          username: defaultOrg.username,
+          instanceUrl: defaultOrg.instanceUrl,
+          isProduction: !defaultOrg.instanceUrl.includes('sandbox'),
         });
       }
     } catch {}
@@ -465,6 +601,7 @@ export function App({
       tools: ALL_TOOLS,
       model: cfgForLoop?.llm.model ?? pickDefaultModel('sonnet'),
       maxToolRoundsPerTurn: cfgForLoop?.agent?.maxToolRoundsPerTurn,
+      thinkingMode,
       permissionMode: mode,
       cwd,
       onPermissionPrompt: promptPermission,
@@ -499,9 +636,18 @@ export function App({
         conversationHistoryRef.current.push({ role: 'assistant', content: finalText });
       }
       const t = loop.tokenTracker.get();
+      const cost = loop.tokenTracker.estimatedCostUsd();
       setTokens({
         used: t.inputTokens + t.outputTokens + t.cacheCreationTokens + t.cacheReadTokens,
-        estimatedCostUsd: loop.tokenTracker.estimatedCostUsd(),
+        estimatedCostUsd: cost,
+      });
+      setTokensBreakdown({
+        input: t.inputTokens,
+        output: t.outputTokens,
+        cacheCreation: t.cacheCreationTokens,
+        cacheRead: t.cacheReadTokens,
+        turns: t.turnsCount,
+        costUsd: cost,
       });
       setBlocks((bs) => {
         const last = bs[bs.length - 1];
@@ -518,6 +664,7 @@ export function App({
 
     loop.on('tool:pending', (callId, toolName, input) => {
       const summary = friendlyToolSummary(toolName, input);
+      toolInputsRef.current.set(callId, input);
       // Drop any trailing thinking residue — the model has committed to a tool
       // call, so the "thinking…" indicator has served its purpose.
       setBlocks((bs) => {
@@ -531,6 +678,28 @@ export function App({
 
     loop.on('tool:done', (callId, toolName, result) => {
       const summary = shortDoneSummary(toolName, result);
+      const input = toolInputsRef.current.get(callId);
+      toolInputsRef.current.delete(callId);
+      // Route known tool results into the side panels.
+      if (toolName === 'sf_deploy_start') {
+        const d = parseDeployResult(result);
+        if (d) {
+          setDeployData(d);
+          setSideView('deploy');
+        }
+      } else if (toolName === 'sf_run_tests') {
+        const t = parseTestsResult(result);
+        if (t) {
+          setTestsData(t);
+          setSideView('tests');
+        }
+      } else if (toolName === 'sf_query') {
+        const s = parseSoqlResult(input, result);
+        if (s) {
+          setSoqlData(s);
+          setSideView('soql');
+        }
+      }
       setBlocks((bs) =>
         bs.map((b) =>
           b.id === callId && b.kind === 'tool' ? { ...b, status: 'done' as const, summary } : b,
@@ -563,13 +732,30 @@ export function App({
     return () => {
       loopRef.current = null;
     };
-  }, [apiKeyReady, cwd, askUser, mode, promptPermission, currentModelId]);
+  }, [apiKeyReady, cwd, askUser, mode, promptPermission, currentModelId, thinkingMode]);
 
   // Populate sidebar org on launch (shows existing auth without requiring /orgs).
   useEffect(() => {
     if (!apiKeyReady || setupPhase !== 'ready') return;
     void refreshOrg();
   }, [apiKeyReady, setupPhase, refreshOrg]);
+
+  // --- session persistence: append new blocks + update meta ---
+  useEffect(() => {
+    const start = lastPersistedBlockCountRef.current;
+    if (blocks.length <= start) return;
+    for (let i = start; i < blocks.length; i++) {
+      const b = blocks[i];
+      if (!b) continue;
+      try {
+        appendBlock(sessionIdRef.current, b);
+      } catch {}
+    }
+    lastPersistedBlockCountRef.current = blocks.length;
+    try {
+      touchSession(sessionIdRef.current, cwd, blocks);
+    } catch {}
+  }, [blocks, cwd]);
 
   // --- learnBus ---
   useEffect(() => {
@@ -584,6 +770,44 @@ export function App({
       learnBus.off('subagent:spawn', onPersonaSpawn);
     };
   }, []);
+
+  // --- Continuous-learning worker ---
+  // Spawn the Bun Worker once setup is ready. Re-emits worker events onto
+  // learnBus so the side panels + status bar pick them up. /learn commands
+  // dispatch via setLearnWorkerHandle().
+  useEffect(() => {
+    if (setupPhase !== 'ready') return;
+    if (loadConfig()?.learn?.enabled === false) return;
+    const handle = startLearnWorker({
+      onEvent: (ev) => {
+        if (ev.type === 'progress') {
+          learnBus.emit('embed:progress', {
+            kind: 'embed:progress',
+            collection: ev.collection,
+            done: ev.done,
+            total: ev.total,
+            currentItem: ev.currentItem,
+          });
+        } else if (ev.type === 'done') {
+          learnBus.emit('embed:done', { kind: 'embed:done', collection: ev.collection });
+        } else if (ev.type === 'error') {
+          learnBus.emit('embed:error', {
+            kind: 'embed:error',
+            collection: 'unknown',
+            message: ev.message,
+          });
+        } else if (ev.type === 'status') {
+          setLearnWorkerStatus(ev.status);
+          setLearnWorkerLastRun(ev.lastRunAt);
+        }
+      },
+    });
+    if (!handle) return;
+    setLearnWorkerHandle(handle);
+    return () => {
+      setLearnWorkerHandle(null);
+    };
+  }, [setupPhase]);
 
   // --- Submit ---
   const handleSubmit = useCallback(() => {
@@ -846,13 +1070,56 @@ export function App({
         setToast('permission mode: YOLO · auto-approve all non-destructive ops');
         return;
       }
-      if (
-        label === 'Thinking Mode' ||
-        label === 'Init Project' ||
-        label === 'Background Color' ||
-        label === 'Reduced Motion'
-      ) {
-        setToast(`${label}: not yet implemented`);
+      if (label === 'Thinking Mode') {
+        setThinkingMode((v) => {
+          const next = !v;
+          const cfg = loadConfig();
+          if (cfg) {
+            cfg.agent = { ...cfg.agent, thinkingMode: next };
+            saveConfig(cfg);
+          }
+          setToast(`thinking mode: ${next ? 'ON · extended thinking enabled' : 'off'}`);
+          return next;
+        });
+        return;
+      }
+      if (label === 'Reduced Motion') {
+        setReducedMotion((v) => {
+          const next = !v;
+          const cfg = loadConfig();
+          if (cfg) {
+            cfg.tui = { ...cfg.tui, reducedMotion: next };
+            saveConfig(cfg);
+          }
+          setToast(`reduced motion: ${next ? 'ON' : 'off'}`);
+          return next;
+        });
+        return;
+      }
+      if (label === 'Background Color') {
+        setBgColorIdx((i) => {
+          const next = (i + 1) % 6;
+          const cfg = loadConfig();
+          if (cfg) {
+            cfg.tui = { ...cfg.tui, bgColorIdx: next };
+            saveConfig(cfg);
+          }
+          setToast(`background color: variant ${next + 1}/6`);
+          return next;
+        });
+        return;
+      }
+      if (label === 'Init Project') {
+        try {
+          const result = initProject(cwd);
+          setBlocks((bs) => [
+            ...bs,
+            { id: crypto.randomUUID(), kind: 'user', text: label },
+            { id: crypto.randomUUID(), kind: 'assistant', text: result.message },
+          ]);
+        } catch (err) {
+          setToast(`init failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
         return;
       }
 
@@ -883,10 +1150,6 @@ export function App({
       }
       if (cmd.handler === 'model') {
         openModelPicker();
-        return;
-      }
-      if (cmd.handler === 'sessions' || cmd.handler === 'knowledge') {
-        setToast(`${label}: not yet wired in TUI`);
         return;
       }
 
@@ -921,14 +1184,119 @@ export function App({
             },
           ]);
         } else if (cmd.handler === 'learn') {
+          const answer = await askUser({
+            question: 'Continuous learning worker',
+            header: '/learn',
+            options: [
+              { label: 'Status', description: 'Show worker status and last run' },
+              { label: 'Refresh', description: 'Trigger an immediate refresh' },
+              { label: 'Pause', description: 'Pause scheduled runs' },
+              { label: 'Resume', description: 'Resume scheduled runs' },
+            ],
+            multiSelect: false,
+          });
+          const map: Record<string, 'status' | 'refresh' | 'pause' | 'resume'> = {
+            Status: 'status',
+            Refresh: 'refresh',
+            Pause: 'pause',
+            Resume: 'resume',
+          };
+          const pickLearn = Array.isArray(answer.selected) ? answer.selected[0] : answer.selected;
+          const sub = map[pickLearn ?? 'Status'] ?? 'status';
+          const out = await learnCommand(sub, ctx);
           setBlocks((bs) => [
             ...bs,
-            {
-              id: crypto.randomUUID(),
-              kind: 'assistant',
-              text: 'Learn worker is not running in this build (TODO: start scheduler in launch path).',
-            },
+            { id: crypto.randomUUID(), kind: 'assistant', text: out.message },
           ]);
+        } else if (cmd.handler === 'knowledge') {
+          const answer = await askUser({
+            question: 'Knowledge base (qmd)',
+            header: '/knowledge',
+            options: [
+              { label: 'Status', description: 'Show qmd version + collections' },
+              { label: 'Install', description: 'Install @tobilu/qmd globally' },
+              { label: 'Embed', description: 'Embed apex-ref collection now' },
+              { label: 'Update', description: 'Force re-embed apex-ref' },
+            ],
+            multiSelect: false,
+          });
+          const map: Record<string, 'status' | 'install' | 'embed' | 'update'> = {
+            Status: 'status',
+            Install: 'install',
+            Embed: 'embed',
+            Update: 'update',
+          };
+          const pickKb = Array.isArray(answer.selected) ? answer.selected[0] : answer.selected;
+          const sub = map[pickKb ?? 'Status'] ?? 'status';
+          const out = await knowledgeCommand(sub, ctx);
+          setBlocks((bs) => [
+            ...bs,
+            { id: crypto.randomUUID(), kind: 'assistant', text: out.message },
+          ]);
+        } else if (cmd.handler === 'sessions') {
+          const text = formatSessionsMessage();
+          setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text }]);
+        } else if (cmd.handler === 'history') {
+          const sessions = listSessionsForCwd(cwd);
+          if (sessions.length === 0) {
+            setBlocks((bs) => [
+              ...bs,
+              {
+                id: crypto.randomUUID(),
+                kind: 'assistant',
+                text: `No prior sessions for ${cwd}. Sessions are saved automatically once you start chatting.`,
+              },
+            ]);
+          } else {
+            const opts = sessions.slice(0, 9).map((s) => {
+              const when = new Date(s.updatedAt).toLocaleString();
+              return {
+                label: `${when} · ${s.messageCount} msg`,
+                description: (s.preview && s.preview.length > 0 ? s.preview : '(empty)').slice(
+                  0,
+                  60,
+                ),
+              };
+            });
+            opts.push({ label: 'Cancel', description: 'Keep current session' });
+            const answer = await askUser({
+              question: 'Resume which session?',
+              header: '/history',
+              options: opts,
+              multiSelect: false,
+            });
+            const picked = Array.isArray(answer.selected) ? answer.selected[0] : answer.selected;
+            if (!picked || picked === 'Cancel') {
+              setBlocks((bs) => [
+                ...bs,
+                {
+                  id: crypto.randomUUID(),
+                  kind: 'assistant',
+                  text: 'Resume cancelled.',
+                },
+              ]);
+            } else {
+              const idx = opts.findIndex((o) => o.label === picked);
+              const target = sessions[idx];
+              if (!target) {
+                setBlocks((bs) => [
+                  ...bs,
+                  {
+                    id: crypto.randomUUID(),
+                    kind: 'assistant',
+                    text: 'Could not match selection.',
+                  },
+                ]);
+              } else {
+                const restored = readBlocks(target.id);
+                conversationHistoryRef.current = blocksToMessages(restored);
+                sessionIdRef.current = target.id;
+                lastPersistedBlockCountRef.current = restored.length;
+                setBlocks(restored);
+                setToast(`Resumed session ${target.id} · ${restored.length} blocks`);
+              }
+            }
+          }
         } else {
           setToast(`${label}: handler '${cmd.handler}' not wired`);
         }
@@ -1094,9 +1462,32 @@ export function App({
         setPaletteOpen(true);
         setPaletteSel(0);
       },
-      onToggleEmbed: () => {},
-      onToggleThinking: () => {},
-      onToggleDeploy: () => {},
+      onToggleEmbed: () => {
+        setSideView('knowledge');
+        setToast('knowledge view · Ctrl+G again to refresh');
+        void learnCommand('refresh', {
+          org: null,
+          session: { id: crypto.randomUUID(), projectRoot: cwd },
+          askUser,
+          emit: () => {},
+        });
+      },
+      onToggleThinking: () => {
+        setThinkingMode((v) => {
+          const next = !v;
+          const cfg = loadConfig();
+          if (cfg) {
+            cfg.agent = { ...cfg.agent, thinkingMode: next };
+            saveConfig(cfg);
+          }
+          setToast(`thinking mode: ${next ? 'ON · extended thinking enabled' : 'off'}`);
+          return next;
+        });
+      },
+      onToggleDeploy: () => {
+        setSideView('deploy');
+        setToast('deploy view · last deploy result');
+      },
       onCyclePermMode: cyclePermissionMode,
       onCycleSidePrev: () =>
         setSideView(
@@ -1108,12 +1499,63 @@ export function App({
         setSideView(
           (v) => SIDE_VIEWS[(SIDE_VIEWS.indexOf(v) + 1) % SIDE_VIEWS.length] ?? 'persona',
         ),
-      onToggleDemo: () => {},
-      onToggleToast: () => {},
-      onOpenModal: () => {},
+      onToggleDemo: () => {
+        setReducedMotion((v) => {
+          const next = !v;
+          const cfg = loadConfig();
+          if (cfg) {
+            cfg.tui = { ...cfg.tui, reducedMotion: next };
+            saveConfig(cfg);
+          }
+          setToast(`reduced motion: ${next ? 'ON' : 'off'}`);
+          return next;
+        });
+      },
+      onToggleToast: () => {
+        setToast(null);
+      },
+      onOpenModal: () => {
+        setPaletteOpen(true);
+        setPaletteSel(0);
+        setPaletteQuery('');
+      },
       inputRef,
       renderer,
     },
+  );
+
+  // Cache qmd detection — detectQmd() spawnsSync; never call in render loop.
+  const qmdInfo = useMemo(() => detectQmd(), []);
+
+  // Build KnowledgeData from embed rows + worker status. Memoized — recomputes
+  // only when underlying inputs change.
+  const knowledgeData: KnowledgeData = useMemo(() => {
+    const rows: KnowledgeRow[] = embedRows.map((r) => ({
+      collection: r.collection,
+      status: r.status,
+      done: r.done,
+      total: r.total,
+      currentItem: r.currentItem,
+      error: r.error,
+    }));
+    return {
+      qmdInstalled: qmdInfo !== null,
+      qmdVersion: qmdInfo?.version,
+      rows,
+      workerStatus: learnWorkerStatus,
+      lastRunAt: learnWorkerLastRun,
+    };
+  }, [embedRows, qmdInfo, learnWorkerStatus, learnWorkerLastRun]);
+
+  const sidePanelData = useMemo(
+    () => ({
+      deploy: deployData,
+      tests: testsData,
+      soql: soqlData,
+      knowledge: knowledgeData,
+      tokensBreakdown,
+    }),
+    [deployData, testsData, soqlData, knowledgeData, tokensBreakdown],
   );
 
   // ── First-run setup tree (no splash, no sidebar, no main input) ──────────
@@ -1193,7 +1635,14 @@ export function App({
   }
 
   return (
-    <box style={{ flexDirection: 'column', width, height }}>
+    <box
+      style={{
+        flexDirection: 'column',
+        width,
+        height,
+        backgroundColor: getBgColor(bgColorIdx),
+      }}
+    >
       <LiveStatusBar />
       {isSplash ? (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
@@ -1203,17 +1652,19 @@ export function App({
             org={currentOrg}
             model={modelSummaryFromId(currentModelId)}
             tokens={tokens.used > 0 ? tokens : null}
+            data={sidePanelData}
           />
         </box>
       ) : (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
-          {treeOpen ? <DirTree projectRoot={cwd} org={currentOrg} /> : null}
-          <ChatPanel blocks={blocks} onToggleTool={() => {}} />
+          {treeOpen ? <DirTree projectRoot={cwd} org={currentOrgHandle} /> : null}
+          <ChatPanel blocks={blocks} onToggleTool={() => {}} reducedMotion={reducedMotion} />
           <SidePanel
             view={sideView}
             org={currentOrg}
             model={modelSummaryFromId(currentModelId)}
             tokens={tokens.used > 0 ? tokens : null}
+            data={sidePanelData}
           />
         </box>
       )}

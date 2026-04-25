@@ -1,11 +1,30 @@
-import { FIXTURE } from '~/fixtures/chat';
 import type { SideView } from '~/types/ui';
-import { ACCENT, DIM, ERR, OK } from '~/ui/theme';
-import { DeployView } from '~/ui/side/DeployView';
-import { KnowledgeView } from '~/ui/side/KnowledgeView';
+import { ACCENT, DIM, OK } from '~/ui/theme';
+import { DeployView, type DeployData } from '~/ui/side/DeployView';
+import { KnowledgeView, type KnowledgeData } from '~/ui/side/KnowledgeView';
 import { PersonaView } from '~/ui/side/PersonaView';
-import { SoqlView } from '~/ui/side/SoqlView';
-import { TestsView } from '~/ui/side/TestsView';
+import { SoqlView, type SoqlData } from '~/ui/side/SoqlView';
+import { TestsView, type TestsData } from '~/ui/side/TestsView';
+import { TokensView, type TokensBreakdown } from '~/ui/side/TokensView';
+
+export interface OrgSummary {
+  alias: string;
+  status: 'connected' | 'disconnected';
+  /** Optional — only set for scratch orgs. */
+  scratchDaysLeft?: number;
+}
+
+export interface ModelSummary {
+  /** Provider id, e.g. "anthropic". */
+  provider: string;
+  /** Display name, e.g. "Sonnet 4.6" — not the raw model id. */
+  name: string;
+}
+
+export interface TokenSummary {
+  used: number;
+  estimatedCostUsd: number;
+}
 
 function fmtTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
@@ -24,24 +43,43 @@ function LogoBlock() {
   );
 }
 
-function MetaBlock() {
-  const f = FIXTURE;
+function MetaBlock({
+  org,
+  model,
+  tokens,
+}: {
+  org: OrgSummary | null;
+  model: ModelSummary | null;
+  tokens: TokenSummary | null;
+}) {
   return (
     <box style={{ flexDirection: 'column', marginTop: 1 }}>
       <text content="Salesforce" style={{ fg: DIM }} />
-      <box style={{ flexDirection: 'row' }}>
-        <text content="● " style={{ fg: OK }} />
-        <text content={f.org.alias} />
-      </box>
-      <text content=" scratch · 28 days left" style={{ fg: DIM }} />
+      {org ? (
+        <>
+          <box style={{ flexDirection: 'row' }}>
+            <text content="● " style={{ fg: org.status === 'connected' ? OK : DIM }} />
+            <text content={org.alias} />
+          </box>
+          {typeof org.scratchDaysLeft === 'number' ? (
+            <text content={` scratch · ${org.scratchDaysLeft} days left`} style={{ fg: DIM }} />
+          ) : null}
+        </>
+      ) : (
+        <text content=" no org · /login or /orgs" style={{ fg: DIM }} />
+      )}
       <box style={{ marginTop: 1 }}>
         <text content="Model" style={{ fg: DIM }} />
       </box>
-      <text content={f.model.name} />
-      <box style={{ flexDirection: 'row' }}>
-        <text content={`${fmtTokens(f.tokens.used)} `} style={{ fg: DIM }} />
-        <text content={`$${f.tokens.cost.toFixed(2)}`} style={{ fg: ACCENT }} />
-      </box>
+      <text content={model?.name ?? 'not set'} />
+      {tokens ? (
+        <box style={{ flexDirection: 'row' }}>
+          <text content={`${fmtTokens(tokens.used)} `} style={{ fg: DIM }} />
+          <text content={`$${tokens.estimatedCostUsd.toFixed(2)}`} style={{ fg: ACCENT }} />
+        </box>
+      ) : (
+        <text content="0 tokens" style={{ fg: DIM }} />
+      )}
     </box>
   );
 }
@@ -67,7 +105,27 @@ function KeybindHints() {
   );
 }
 
-export function SidePanel({ view }: { view: SideView }) {
+export interface SidePanelData {
+  deploy?: DeployData | null;
+  tests?: TestsData | null;
+  soql?: SoqlData | null;
+  knowledge?: KnowledgeData | null;
+  tokensBreakdown?: TokensBreakdown | null;
+}
+
+export function SidePanel({
+  view,
+  org,
+  model,
+  tokens,
+  data,
+}: {
+  view: SideView;
+  org: OrgSummary | null;
+  model: ModelSummary | null;
+  tokens: TokenSummary | null;
+  data?: SidePanelData;
+}) {
   return (
     <box
       style={{
@@ -80,17 +138,18 @@ export function SidePanel({ view }: { view: SideView }) {
       }}
     >
       <LogoBlock />
-      <MetaBlock />
+      <MetaBlock org={org} model={model} tokens={tokens} />
       <box style={{ marginTop: 1, flexDirection: 'row' }}>
         <text content={view} />
         <text content=" · Alt+[ ] cycle" style={{ fg: DIM }} />
       </box>
       <box style={{ marginTop: 1, flexDirection: 'column' }}>
         {view === 'persona' && <PersonaView />}
-        {view === 'tests' && <TestsView />}
-        {view === 'soql' && <SoqlView />}
-        {view === 'knowledge' && <KnowledgeView />}
-        {view === 'deploy' && <DeployView />}
+        {view === 'tests' && <TestsView data={data?.tests ?? null} />}
+        {view === 'soql' && <SoqlView data={data?.soql ?? null} />}
+        {view === 'knowledge' && <KnowledgeView data={data?.knowledge ?? null} />}
+        {view === 'deploy' && <DeployView data={data?.deploy ?? null} />}
+        {view === 'tokens' && <TokensView data={data?.tokensBreakdown ?? null} />}
       </box>
       <KeybindHints />
     </box>

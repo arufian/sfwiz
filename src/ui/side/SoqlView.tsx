@@ -1,21 +1,47 @@
-import { DIM } from '~/ui/theme';
+import { ACCENT, DIM, ERR } from '~/ui/theme';
 
-export function SoqlView() {
+export interface SoqlData {
+  soql: string;
+  totalSize: number;
+  rows: string[];
+  error?: string;
+}
+
+export function SoqlView({ data }: { data: SoqlData | null }) {
+  if (!data) {
+    return (
+      <box style={{ flexDirection: 'column' }}>
+        <text content="SOQL" />
+        <text content="no query yet — invoke sf_query" style={{ fg: DIM }} />
+      </box>
+    );
+  }
+
+  const queryLines = data.soql.split('\n').slice(0, 6);
+
   return (
     <box style={{ flexDirection: 'column' }}>
       <text content="SOQL" />
       <box style={{ marginTop: 1, flexDirection: 'column' }}>
-        <text content="SELECT Id, Name, StageName" style={{ fg: DIM }} />
-        <text content="FROM Opportunity" style={{ fg: DIM }} />
-        <text content="WHERE IsClosed = false" style={{ fg: DIM }} />
-        <text content="LIMIT 50" style={{ fg: DIM }} />
+        {queryLines.map((line, i) => (
+          <text key={`q-${i}-${line.slice(0, 8)}`} content={line} style={{ fg: ACCENT }} />
+        ))}
       </box>
-      <box style={{ marginTop: 1, flexDirection: 'column' }}>
-        <text content="006... Acme Bid         Prospecting" />
-        <text content="006... Initech Renewal  Negotiation" />
-        <text content="006... Umbrella POC     Qualification" />
-        <text content="… 47 more" style={{ fg: DIM }} />
-      </box>
+      {data.error ? (
+        <box style={{ marginTop: 1 }}>
+          <text content={data.error} style={{ fg: ERR }} />
+        </box>
+      ) : (
+        <box style={{ marginTop: 1, flexDirection: 'column' }}>
+          <text content={`${data.totalSize} rows`} style={{ fg: DIM }} />
+          {data.rows.slice(0, 8).map((row, i) => (
+            <text key={`r-${i}-${row.slice(0, 12)}`} content={row} />
+          ))}
+          {data.rows.length > 8 ? (
+            <text content={`… ${data.rows.length - 8} more`} style={{ fg: DIM }} />
+          ) : null}
+        </box>
+      )}
     </box>
   );
 }
