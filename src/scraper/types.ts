@@ -12,9 +12,9 @@ export type CollectionMeta = z.infer<typeof CollectionMeta>;
 
 export interface Adapter {
   name: 'apex-ref' | 'lwc-guide' | 'sf-releases';
-  detectEntrypoints(): Promise<string[]>;
-  shouldInclude(url: string): boolean;
-  toSlug(url: string): string;
-  extractMarkdown(html: string, url: string): string;
-  writeMeta(meta: CollectionMeta): Promise<void>;
+  baseUrl: string;
+  rateLimit: number;
+  shouldSkip(url: string): boolean;
+  /** Extract content from HTML, returning title + markdown, or null to skip. */
+  extract(html: string, url: string): Promise<{ title: string; markdown: string; url: string } | null>;
 }
