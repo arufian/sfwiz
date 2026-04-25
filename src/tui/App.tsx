@@ -26,6 +26,8 @@ import { initAnthropicClient, resetAnthropicClient, resolveApiKey } from '~/llm/
 import { listAvailableModels, type ModelChoice } from '~/llm/list-models';
 import { ANTHROPIC_MODELS, pickDefaultModel } from '~/llm/models-catalog';
 import type { AskUserPayload, AskUserResult } from '~/tools/types';
+import { listOrgs } from '~/sf/auth';
+import type { OrgSummary } from '~/ui/panels/SidePanel';
 
 import { loginCommand } from '~/dispatcher/commands/login';
 import { orgsCommand } from '~/dispatcher/commands/orgs';
@@ -409,6 +411,20 @@ export function App({
     used: 0,
     estimatedCostUsd: 0,
   });
+  const [currentOrg, setCurrentOrg] = useState<OrgSummary | null>(null);
+
+  const refreshOrg = useCallback(async () => {
+    try {
+      const orgs = await listOrgs();
+      const defaultOrg = orgs.find((o) => o.isDefault) ?? orgs[0];
+      if (defaultOrg) {
+        setCurrentOrg({
+          alias: defaultOrg.alias ?? defaultOrg.username,
+          status: defaultOrg.connectedStatus === 'active' ? 'connected' : 'disconnected',
+        });
+      }
+    } catch {}
+  }, []);
 
   // --- ask_user bridge ---
   const askUser = useCallback((payload: AskUserPayload): Promise<AskUserResult> => {
@@ -880,6 +896,7 @@ export function App({
       try {
         if (cmd.handler === 'orgs') {
           const result = await orgsCommand(ctx);
+          if (result.orgs.length > 0) void refreshOrg();
           const lines = result.orgs.length
             ? `Authenticated orgs (${result.orgs.length}):\n${result.orgs.map((o) => `  ${o.alias ?? '(no alias)'} — ${o.username}${o.isDefault ? ' [default]' : ''}${o.isDefaultDevHub ? ' [devhub]' : ''}`).join('\n')}`
             : result.kicked
@@ -888,6 +905,7 @@ export function App({
           setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: lines }]);
         } else if (cmd.handler === 'login') {
           const result = await loginCommand(ctx);
+          if (result.kicked) void refreshOrg();
           setBlocks((bs) => [
             ...bs,
             {
@@ -916,7 +934,7 @@ export function App({
         ]);
       }
     },
-    [renderer, askUser, cwd, cyclePermissionMode, openModelPicker],
+    [renderer, askUser, cwd, cyclePermissionMode, openModelPicker, refreshOrg],
   );
 
   // --- First-run wizard handlers ---
@@ -1172,18 +1190,18 @@ export function App({
           <SplashView tip={splashTip} />
           <SidePanel
             view={sideView}
-            org={null}
+            org={currentOrg}
             model={modelSummaryFromId(currentModelId)}
             tokens={tokens.used > 0 ? tokens : null}
           />
         </box>
       ) : (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
-          {treeOpen ? <DirTree projectRoot={cwd} org={null} /> : null}
+          {treeOpen ? <DirTree projectRoot={cwd} org={currentOrg} /> : null}
           <ChatPanel blocks={blocks} onToggleTool={() => {}} />
           <SidePanel
             view={sideView}
-            org={null}
+            org={currentOrg}
             model={modelSummaryFromId(currentModelId)}
             tokens={tokens.used > 0 ? tokens : null}
           />
