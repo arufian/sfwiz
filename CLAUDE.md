@@ -26,7 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. Binary: `dist/sfwiz` (65.6 MB). Bug-fix pass in progress — not user-ready.**
+**2026-04-26: Phase 4 supplement Stream B shipped (apex-ref + jsforce offline). Phase 5 BUG-1/2/3/4 resolved (a1477b2). Binary: `dist/sfwiz` (77.5 MB, +8 MB embedded knowledge bundle). 207 tests pass. Ready for E2E re-run.**
+
+Earlier: 2026-04-25 — Phase 4 M1–M18 complete, 4 bugs found in E2E run.
 
 M1–M18 complete — see `.claude/plan/phase-4-implementation.md` for per-milestone deliverables.
 
@@ -54,11 +56,9 @@ Pre-flip checklist:
 
 ## Current phase
 
-**Bug-fix pass in progress. Phases 1–4 implementation complete, but bugs found during QA — fixing before recording demo.**
+**Phase 5 bug-fix round 1 done (2026-04-26).** BUG-1/2/3/4 from E2E (`E2E-Test-Result.MD`) all resolved in `a1477b2`. Phase 4 supplement Stream B (offline knowledge for apex-ref + jsforce) shipped in `4eea1a5`. Binary at `dist/sfwiz` (77.5 MB, darwin-arm64).
 
-Binary at `dist/sfwiz` (65.6 MB, darwin-arm64) exists but not stable yet.
-
-Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs end-to-end without crashes, proceed to Phase 6 (Video) — read `.claude/plan/phase-6-video.md`.
+Next action for a fresh session: re-run the E2E checklist against the new binary to verify BUG-2/3/4 do not reproduce. If clean, move to Phase 6 (Video) — read `.claude/plan/phase-6-video.md`. If new bugs surface, log to `E2E-Test-Result.MD` and continue Phase 5.
 
 ## Phase map
 
@@ -69,7 +69,7 @@ Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs 
 | 2 Planning       | done                        | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session                         |
 | 3 PoC (UI only)  | done (opentui)              | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1                |
 | 4 Implementation | **DONE** (M1–M18)           | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                               |
-| 5 Test           | **IN PROGRESS** (bug fixes) | `.claude/plan/phase-5-test.md`           | bugs found post-M18 — fix until stable, then proceed to Phase 6                      |
+| 5 Test           | **bugs 1–4 fixed** (re-run pending) | `.claude/plan/phase-5-test.md`   | BUG-1/2/3/4 resolved 2026-04-26 (a1477b2). Re-run E2E to confirm before Phase 6.    |
 | 6 Video          | blocked (wait Phase 5)      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                                           |
 | 4 supplement     | **partial** (B done, A pending) | `.claude/plan/phase-4-supplement-jsforce-and-knowledge.md` | Stream B M19–M25 done (apex-ref + jsforce shipped offline; 3 SF collections deferred to runtime fetch). Stream A M26–M32 (jsforce expansion) pending after Phase 5 bug-fix. |
 | —                | —                           | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                                 |
