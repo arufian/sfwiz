@@ -1,4 +1,4 @@
-import type { z, ZodTypeAny } from 'zod';
+import type { ZodTypeAny, z } from 'zod';
 import type { PersonaName } from '~/personas/types';
 
 export interface ToolContext {
@@ -20,11 +20,7 @@ export interface SessionHandle {
   projectRoot: string;
 }
 
-export type ToolEventKind =
-  | 'tool:pending'
-  | 'tool:running'
-  | 'tool:done'
-  | 'tool:error';
+export type ToolEventKind = 'tool:pending' | 'tool:running' | 'tool:done' | 'tool:error';
 
 export interface ToolEvent {
   kind: ToolEventKind;
@@ -65,5 +61,6 @@ export type AskUserPayload = zod.infer<typeof AskUserPayload>;
 export const AskUserResult = zod.object({
   selected: zod.union([zod.string(), zod.array(zod.string())]),
   notes: zod.string().nullable(),
+  cancelled: zod.boolean().default(false),
 });
 export type AskUserResult = zod.infer<typeof AskUserResult>;

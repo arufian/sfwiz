@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * sfwiz CLI entry point.
- * Parses argv then boots TUI (or --plain text mode).
+ * Parses argv then boots the TUI.
  */
 export {};
 
@@ -23,23 +23,14 @@ Usage:
 Options:
   --version, -v          Print version and exit
   --help, -h             Show this help
-  --plain                No-ANSI mode for CI / SSH
   --trust-this-workspace Bypass trust prompt for cwd (writes trust record)
   --first-run            Force re-run setup wizard
 `);
   process.exit(0);
 }
 
-const plain = args.includes('--plain');
 const trustBypass = args.includes('--trust-this-workspace');
 const forceFirstRun = args.includes('--first-run');
 
-if (plain) {
-  // Plain mode: minimal text REPL (no opentui). Stubbed until M17.
-  console.log('sfwiz plain mode — not yet implemented');
-  process.exit(0);
-}
-
-// Boot full TUI — delegate to launch() which owns JSX.
 const { launch } = await import('~/tui/launch');
 await launch({ trustBypass, forceFirstRun });

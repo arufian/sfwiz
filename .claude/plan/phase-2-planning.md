@@ -2,6 +2,8 @@
 
 Status: **complete**. Next: `phase-3-poc.md`.
 
+> **2026-04-25 update — only the "Best Managed Agents" prize narrative was dropped.** The product architecture below stands: orchestrator (`@anthropic-ai/sdk` `messages.stream()`) drives 6 persona subagents (org-admin / designer / developer / deploy-manager / reviewer / qa) each running via `@anthropic-ai/claude-agent-sdk` `query()`. **TODO next session**: actually wire `src/agent/router.ts` → 6 persona subagents into `src/tui/App.tsx` (currently the chat routes straight to the orchestrator with all tools attached; persona dispatch is not invoked).
+
 Source of truth for architecture. Re-open this at every session.
 
 ## 1. High-level architecture
@@ -14,10 +16,9 @@ flowchart TB
 
   subgraph Runtime["sfwiz runtime (Bun)"]
     Dispatcher["Command Dispatcher<br/>(slash-commands + chat)"]
-    AgentLoop["Agent Loop<br/>(Anthropic SDK messages.stream())"]
+    AgentLoop["Orchestrator<br/>(Anthropic SDK messages.stream())"]
     Router["Persona Router"]
-    SharedLoop["Shared Loop<br/>designer → developer → deploy"]
-    IsoLoop["Subagents<br/>(Agent SDK query())<br/>reviewer / qa"]
+    Personas["6 Persona Subagents<br/>(Agent SDK query())<br/>org-admin · designer · developer · deploy-manager · reviewer · qa"]
     ToolReg["Tool Registry"]
     Session["Session Store<br/>~/.sfwiz/session/<id>.json"]
     Config["Config<br/>~/.sfwiz/config.json"]
@@ -50,10 +51,8 @@ flowchart TB
   TUI <--> Dispatcher
   Dispatcher --> AgentLoop
   AgentLoop --> Router
-  Router --> SharedLoop
-  Router --> IsoLoop
-  SharedLoop --> ToolReg
-  IsoLoop --> ToolReg
+  Router --> Personas
+  Personas --> ToolReg
   AgentLoop <--> Providers
   ToolReg --> SFCLI
   ToolReg --> JSForce
@@ -61,7 +60,7 @@ flowchart TB
   ToolReg --> Project
   ToolReg --> Docs
   ToolReg --> QMDmcp
-  SharedLoop --> Session
+  Personas --> Session
   Config --> AgentLoop
   Refs --> AgentLoop
   QMDmcp --> QMD
@@ -82,7 +81,7 @@ flowchart TB
 | `router/` | Given a task + current state, pick next persona. Implements feedback-loop auto-redispatch |
 | `tools/` | Registry + concrete implementations. Grouped: `fs`, `shell`, `sf-cli`, `jsforce`, `metadata`, `settings`, `soql`, `apex`, `lwc` |
 | `sf/` | Salesforce adapters: auth (`@salesforce/core`), org-list, `sf` CLI wrappers, jsforce client factory, metadata-umbrella extractor, 42-type settings registry |
-| `llm/` | `@anthropic-ai/sdk` client + `messages.stream()` wrapper for the main loop; Anthropic-only model catalog (Opus 4.7 / Sonnet 4.6 / Haiku 4.5) + first-run model picker; cache_control hint helpers; token tracker. Multi-provider deferred to v2. Subagents use `@anthropic-ai/claude-agent-sdk` `query()` directly from `agent/subagents.ts`. |
+| `llm/` | `@anthropic-ai/sdk` client + `messages.stream()` wrapper for the orchestrator; Anthropic-only model catalog (Opus 4.7 / Sonnet 4.6 / Haiku 4.5) + first-run model picker; cache_control hint helpers; token tracker. Multi-provider deferred to v2. The 6 persona subagents call `@anthropic-ai/claude-agent-sdk` `query()` directly from `agent/subagents.ts`. |
 | `session/` | Conversation persistence, hash-keyed sessions, 30-day TTL, `/resume` support |
 | `config/` | Zod schema for `~/.sfwiz/config.json`, env-var overlay, first-run bootstrap |
 | `resources/` | Bundled reference MDs (10 ported from plugin), persona prompts, scratch-org templates |
@@ -156,7 +155,7 @@ Validated with Zod. Missing fields → first-run wizard populates. Env overrides
 
 ## 5. Tool registry — v1 catalog (full schemas in phase-4)
 
-Grouped by domain. Each tool is a typed function callable by the LLM. In the main loop the tool schema is converted to Anthropic's `tools` array shape (`{ name, description, input_schema }`) for `anthropic.messages.stream()`. In subagents, tools are exposed via the Agent SDK's `tools` whitelist on each `AgentDefinition` (built-ins like `Read`, `Glob`, `Grep`, `Bash`) — sfwiz's custom Salesforce tools reach subagents as MCP tools registered on the SDK options.
+Grouped by domain. Each tool is a typed function callable by the LLM. In the orchestrator the tool schema is converted to Anthropic's `tools` array shape (`{ name, description, input_schema }`) for `anthropic.messages.stream()`. In persona subagents, tools are exposed via the Agent SDK's `tools` whitelist on each `AgentDefinition` (built-ins like `Read`, `Glob`, `Grep`, `Bash`) — sfwiz's custom Salesforce tools reach subagents as MCP tools registered on the SDK options.
 
 **User interaction** (always allowed, every persona)
 - `ask_user` — structured prompt with 2–6 options (label + description + optional preview), multiSelect flag. Renders as inline modal over chat, blocks agent loop until user picks. Result returned as `{ selected: string|string[], notes?: string }`.
@@ -237,9 +236,9 @@ for (const phase of ['design', 'develop', 'deploy'] as const) {
 }
 ```
 
-### Subagents (reviewer, qa) — Agent SDK `query()`
+### Persona subagents — Agent SDK `query()`
 
-Each subagent is declared as a typed `AgentDefinition` and run via the Agent SDK's `query()` async generator. Receives **only** the artifacts it needs (design doc path, changed files) as the prompt body. Returns **structured JSON** (parsed from the final `result` message) injected into the shared loop as a tool-result. The SDK isolates conversation state by construction — no leakage path back to the shared loop.
+Each of the 6 personas (org-admin, designer, developer, deploy-manager, reviewer, qa) is declared as a typed `AgentDefinition` and run via `@anthropic-ai/claude-agent-sdk`'s `query()` async generator. The orchestrator picks the next persona based on phase + dispatches via `runSubagent()`. Subagents receive **only** the artifacts they need (design doc path, changed files) as the prompt body. They return **structured JSON** (parsed from the final `result` message) injected into the orchestrator history as a tool-result. The SDK isolates conversation state by construction — no leakage path back to the orchestrator.
 
 ```ts
 import { query, type AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
@@ -263,10 +262,10 @@ for await (const msg of query({
   if ('result' in msg) raw = msg.result;
 }
 const reviewerResult = ReviewerResultSchema.parse(JSON.parse(raw));
-shared.injectToolResult('reviewer_run', reviewerResult);
+orchestrator.injectToolResult('reviewer_run', reviewerResult);
 ```
 
-QA follows the same shape with `tools: ['Read', 'Bash']` to invoke `sf apex run test`. Both reviewer and qa run on the model assigned in their persona registry entry (Opus 4.7 for reviewer, Sonnet 4.6 for qa).
+Models per persona: Opus 4.7 for reviewer + designer (judgment-heavy); Sonnet 4.6 for developer + qa + deploy-manager + org-admin (code/exec-heavy). Reviewer + qa keep strict read-only / read+bash tool scopes; the others get domain-appropriate write/SF tools.
 
 ## 7. Slash commands (v1)
 
@@ -301,12 +300,12 @@ QA follows the same shape with `tools: ['Read', 'Bash']` to invoke `sf apex run 
 
 | Risk | Mitigation |
 |------|------------|
-| Manual tool-use loop on `messages.stream()` adds complexity (parse `stop_reason`, append `tool_result` blocks, resume stream, handle mid-tool aborts) | Tight unit + integration coverage in M3 (`tests/agent/loop.integration.test.ts`); reuse a single helper `runStreamingToolLoop()` so neither M13 subagent boundary nor M17 polish duplicate the parse logic. The Agent SDK handles this internally for subagents — only the main loop carries the manual-loop risk. |
+| Manual tool-use loop on `messages.stream()` adds complexity (parse `stop_reason`, append `tool_result` blocks, resume stream, handle mid-tool aborts) | Tight unit + integration coverage in M3 (`tests/agent/loop.integration.test.ts`); reuse a single helper `runStreamingToolLoop()` so neither M13 subagent boundary nor M17 polish duplicate the parse logic. The Agent SDK handles this internally for subagents — only the orchestrator carries the manual-loop risk. |
 | Anthropic SDK `betas` array overwrites or conflicts with future beta features (e.g. layering prompt-caching with extended-thinking) | Always pass `betas` as an array, never a single string; central helper in `src/llm/client.ts` composes the array from a const list. Pin SDK minor version. |
 | jsforce `login()` (SOAP) retires Summer '27 | v1 uses `@salesforce/core` passthrough only — no direct jsforce login. Safe through retirement. |
 | `sf` CLI breaking changes | Pin tested `sf` version range; surface version-check on startup. |
 | Large Metadata API ZIP retrieval times out | Chunk retrievals by Settings category; show progress bar; configurable timeout. |
-| Reviewer persona tool-scope leak | Isolated loop architecture (§6) structurally prevents it. |
+| Reviewer persona tool-scope leak | Each persona runs as an isolated `claude-agent-sdk` subagent with explicit `tools` whitelist; SDK enforces by construction. |
 | Streaming tool-call interleaving corrupts UI | Render tool calls as collapsible blocks; text tokens go to chat buffer; queue tool-call events on the opentui render loop. |
 | opentui performance on very long chat buffers | Virtualized scrollbox (native) + archive to disk after 500 messages. |
 | Multi-provider model pricing surprises | `/tokens` command shows running cost; per-session cap configurable. |
@@ -403,7 +402,7 @@ User can skip install; sfwiz falls back to bundled `resources/references/*.md` (
 
 - Preferred: `claude mcp add qmd -- qmd mcp` (when Claude Code host present).
 - Fallback: sfwiz spawns `qmd mcp --stdio` as a child, speaks MCP over stdio in-process. Exposed to LLM as tool `qmd_query`.
-- Tool call flow: Anthropic SDK `messages.stream()` (main loop) or Agent SDK `query()` (subagents) → sfwiz MCP client → qmd process → Markdown chunks → rendered into chat as a collapsed tool block.
+- Tool call flow: Anthropic SDK `messages.stream()` (orchestrator) or Agent SDK `query()` (persona subagents) → sfwiz MCP client → qmd process → Markdown chunks → rendered into chat as a collapsed tool block.
 
 ### 9.5 Scraper adapter shape
 

@@ -19,11 +19,11 @@ Phase 4 fully shipped. M1–M18 tagged (`m01`–`m18`, `v0.1.0`). Key deliverabl
 - **M10**: Scraper + season detection — `src/scraper/season.ts`, `src/scraper/html-to-md.ts`, `src/scraper/adapters/apex-ref.ts`
 - **M11**: Learn scheduler + Bun Worker — `src/learn/scheduler.ts`, `src/learn/worker.ts`
 - **M12**: DirTree chokidar watcher — `src/tui/layout/DirTree.tsx` (source-tracking integration)
-- **M13**: Subagents (claude-agent-sdk) — `src/agent/subagents.ts` (REVIEWER_AGENT/QA_AGENT), `src/agent/router.ts`
-- **M14**: Persona gate + resources — `src/personas/gate.ts`, `src/personas/registry.ts`, `resources/personas/*.md` (5 personas), `resources/references/*.md` (10 guides)
+- **M13**: Persona subagents (`@anthropic-ai/claude-agent-sdk`) — `src/agent/subagents.ts` (6 `AgentDefinition`s), `src/agent/router.ts`. **In-tree, NOT yet invoked from `App.tsx` runtime — TODO next session.**
+- **M14**: Persona gate + resources — `src/personas/gate.ts`, `src/personas/registry.ts`, `resources/personas/*.md` (6 personas: deploy-manager, designer, developer, org-admin, qa, reviewer), `resources/references/*.md` (10 guides)
 - **M15**: Command palette + fuzzy — `src/util/fuzzy.ts`, `src/dispatcher/registry.ts`, `src/tui/overlays/CommandPalette.tsx`
 - **M16**: Deferred (`.agent` viewer excluded from MVP per hackathon scope)
-- **M17**: Polish — `src/util/async.ts` (retry/throttle), `src/tui/views/TokensView.tsx`, cache-hints verification tests
+- **M17**: Polish — `src/util/async.ts` (retry/throttle), cache-hints verification tests (the unused `src/tui/views/*` shadow-tree was removed; live side panels live under `src/ui/side/*`)
 - **M18**: Packaging — `scripts/build.ts` (multi-platform `--all`), `README.md`, `.env.example`, `dist/sfwiz` binary verified
 
 Prior sessions: 2026-04-24 (PoC polish + 5 UX demos + poc.tsx split), 2026-04-25 (M1–M18 implementation).
@@ -43,12 +43,12 @@ Pre-flip checklist:
 
 - [ ] **Full-history audit** (not just HEAD): `git log -p | rg -n "/Users/|<author-username>|<author-email-prefix>@"` returns 0 hits. If hits found, `git filter-repo` or squash before flipping.
 - [ ] **Secrets scan**: no `.env`, no `ANTHROPIC_API_KEY=sk-…`, no `sf` refresh tokens in any commit. `rg -n "sk-ant-|sk-proj-|AIza|xoxb-" $(git log --all --format=%H | head -50 | xargs -n1 git show --name-only)` style sweep.
-- [ ] **README exists** with quickstart + demo-video link (phase-6 artifact) + "Managed Agents architecture" pointer.
+- [ ] **README exists** with quickstart + demo-video link (phase-6 artifact).
 - [ ] **Tag a stable release**: `git tag v0.1-hackathon-submit && git push origin v0.1-hackathon-submit` — gives judges a pinned SHA that can't drift.
 - [ ] **Fresh-clone sanity**: `git clone … /tmp/sfwiz-verify && cd /tmp/sfwiz-verify && bun install && bun run poc` — must launch without editing anything.
-- [ ] **Plan docs visibility decision**: `.gitignore` currently excludes `.claude/` — judges will NOT see phase plans, locked decisions, or the Managed-Agents architecture write-up. This directly hurts the **Best Managed Agents** prize ($5k) narrative, which is graded alongside code. Pick one:
+- [ ] **Plan docs visibility decision**: `.gitignore` currently excludes `.claude/` — judges will NOT see phase plans or locked decisions. Pick one:
   - (a) Un-ignore `.claude/plan/` before the flip (simplest; exposes private planning prose — re-read for tone).
-  - (b) Copy the key plans to `docs/submission/*.md` (tracked): `managed-agents.md`, `architecture.md`, `locked-decisions.md`. Preferred — lets you curate for judges without dumping all planning noise.
+  - (b) Copy the key plans to `docs/submission/*.md` (tracked): `architecture.md`, `locked-decisions.md`. Preferred — lets you curate for judges without dumping all planning noise.
 - [ ] **Incognito verify post-flip**: open the repo URL in a private-browser window immediately after flipping. Confirm public render. Confirm tagged release appears on Releases tab.
 
 ## Goal
@@ -58,8 +58,8 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 - Development (Apex / LWC / SOQL / metadata / deploy)
 - Admin (org settings, users, permissions, sharing, 42-type Settings registry)
 - Scratch-org + existing-org deploy lifecycle
-- Anthropic-only LLM (v1) — `@anthropic-ai/sdk` direct main loop + `@anthropic-ai/claude-agent-sdk` for subagents; multi-provider deferred to v2
-- Hybrid subagent orchestration (design → develop → review → qa → deploy)
+- Anthropic-only LLM (v1) — `@anthropic-ai/sdk` orchestrator (streaming tool-use) + `@anthropic-ai/claude-agent-sdk` for the 6 persona subagents; multi-provider deferred to v2
+- Persona orchestration (1 orchestrator → 6 subagents): org-admin · designer · developer · deploy-manager · reviewer · qa
 - Knowledge base + continuous learning via qmd (Apex ref, LWC guide, release notes)
 
 ## Current phase
@@ -68,7 +68,7 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 
 All 18 milestones shipped and tagged. Binary verified at `dist/sfwiz` (65.6 MB, darwin-arm64). 190 tests pass, 0 TypeScript errors.
 
-Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo script + recording checklist. Then do submission-day prep (README demo-link update, `docs/submission/managed-agents.md`, repo flip).
+Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo script + recording checklist. Then do submission-day prep (README demo-link update, repo flip).
 
 ## Phase map
 
@@ -94,36 +94,9 @@ Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo s
 
 ## Target prizes (special prizes · $5k Claude API credits each)
 
-Primary target → **Best use of Claude Managed Agents**. Secondary → **"Keep Thinking"**. Tertiary → **Most Creative Opus 4.7 Exploration**.
+Primary target → **"Keep Thinking"**. Secondary → **Most Creative Opus 4.7 Exploration**.
 
-### 🎯 Best use of Claude Managed Agents (PRIMARY — $5k)
-
-> "For the team that leveraged the Claude platform the best. We're looking for the project that best uses Managed Agents to hand off meaningful, long-running tasks — not just a demo, but something you'd actually ship."
-
-**Why sfwiz fits**:
-
-- Hybrid persona orchestration (designer → developer → reviewer → qa → deploy-manager) = long-running, hand-off-heavy agent workflow
-- Isolated reviewer + qa sub-loops = clean agent boundaries
-- Continuous-learning background worker (daily scraper + qmd embed) = a true long-running task, not a one-shot demo
-- `ask_user` tool with runtime gate on destructive ops = productionizable safety, not a toy
-
-**How to leverage Managed Agents specifically** (design choices to make before M3):
-
-- Use **Claude Agent SDK** / **Managed Agents API** for the reviewer + qa isolated sub-loops where available. Document the choice.
-- Route long-running scrape-+-embed jobs through a managed-agent handoff (not a naive setInterval) so the orchestration is visible and observable in the Claude platform.
-- Expose agent handoffs in the TUI (persona divider + side-panel "phase history") so judges can _see_ the managed-agent story live.
-
-**Submission must describe** (graded alongside code):
-
-- Exact Claude models per persona (Opus 4.7 for reviewer/designer; Sonnet 4.6 for developer/qa/deploy-manager; Haiku 4.5 for lightweight tools).
-- Which tasks are handed off to Managed Agents vs. run locally.
-- How long-running tasks (scraper, embed, e2e scratch-org flows) are orchestrated.
-- Prompt caching strategy (stable system prompts + tool-defs with `cacheControl`).
-- Tool schemas, ask_user gate, and isolated-loop architecture.
-
-**TODO before submission**: write `docs/submission/managed-agents.md` covering all of the above with code pointers.
-
-### 🧠 "Keep Thinking" Prize ($5k)
+### 🧠 "Keep Thinking" Prize (PRIMARY — $5k)
 
 > "For the project that didn't stop at the first idea — and landed somewhere nobody saw coming."
 
@@ -133,7 +106,7 @@ Primary target → **Best use of Claude Managed Agents**. Secondary → **"Keep 
 
 > "For the project that treated Opus 4.7 as a creative medium… expressive, playful, strange, or alive."
 
-**Angle**: use Opus 4.7 for the **designer** and **reviewer** personas where voice + judgment matter most. Let the reviewer write prose critique (not just JSON) for a "signature Opus feel" moment in the demo. Optional — don't trade Managed-Agents focus for it.
+**Angle**: surface Opus 4.7 for moments where voice + judgment matter (prose critique on tricky Apex / sharing-rule reasoning). Let Opus write prose, not just JSON, in the demo for a "signature Opus feel" moment.
 
 ## Git workflow (after each phase completes)
 
@@ -164,12 +137,12 @@ Rules:
 
 - **Runtime**: Bun 1.1+ · TypeScript 5.6 strict · Biome (format+lint) · `bun test`
 - **TUI**: `@opentui/react` + `@opentui/core` 0.1.102+ · React 19 · `jsxImportSource: "@opentui/react"` · native `<scrollbox>` + mouse wheel + kitty keyboard · **switched from Ink 5 during PoC** (see `progress.md` §"Framework decision is now STALE"); `.claude/plan/phase-1-research.md` still lists Ink — reconcile in M1
-- **LLM (interactive loop)**: `@anthropic-ai/sdk` directly · `messages.stream()` with manual tool-use loop (check `stop_reason === 'tool_use'`, dispatch tool, inject `tool_result`, continue) · prompt caching via `betas: ['prompt-caching-2024-07-31']` + `cache_control: { type: 'ephemeral' }` on stable system + tool-defs blocks · v1 = Anthropic only; multi-provider (OpenAI/Google/Groq) deferred to v2
-- **LLM (subagents handoff)**: `@anthropic-ai/claude-agent-sdk` ≥ 0.2.111 · `query()` async generator with `AgentDefinition` · reviewer + qa + scraper/embed worker run as named subagents with strict tool-scope · session capture via `system/init.session_id` for `resume` continuation · Opus 4.7 (`claude-opus-4-7`) requires SDK ≥ 0.2.111 — this is the observable handoff the "Best Managed Agents" prize requires
+- **LLM (orchestrator)**: `@anthropic-ai/sdk` directly · `messages.stream()` with manual tool-use loop (check `stop_reason === 'tool_use'`, dispatch tool, inject `tool_result`, continue) · prompt caching via `betas: ['prompt-caching-2024-07-31']` + `cache_control: { type: 'ephemeral' }` on stable system + tool-defs blocks · v1 = Anthropic only; multi-provider (OpenAI/Google/Groq) deferred to v2
+- **LLM (persona subagents)**: `@anthropic-ai/claude-agent-sdk` ≥ 0.2.111 · `query()` async generator with `AgentDefinition` · 6 persona subagents (org-admin / designer / developer / deploy-manager / reviewer / qa) with strict tool-scope · session capture via `system/init.session_id` for `resume` · Opus 4.7 (`claude-opus-4-7`) requires SDK ≥ 0.2.111
 - **Salesforce API**: `jsforce` 3 (REST/SOQL/Tooling/Metadata/Bulk)
 - **Salesforce auth**: `@salesforce/core` 8 passthrough of `sf` CLI creds · `/orgs` command picks target · auto-run `sf login web` if empty list
 - **Salesforce lifecycle**: shell out to `sf` CLI for scratch, deploy, retrieve, apex test
-- **Subagents**: hybrid — `@anthropic-ai/sdk` `messages.stream()` main loop for `designer → developer → deploy-manager`; `@anthropic-ai/claude-agent-sdk` `query()` with `AgentDefinition` for `reviewer` + `qa` + continuous-learn worker (strict tool-scope, SDK runs the loop, structured JSON returned via `result` message)
+- **Persona orchestration**: 1 orchestrator → 6 persona subagents · orchestrator runs via `@anthropic-ai/sdk` `messages.stream()` and dispatches the chosen persona via `@anthropic-ai/claude-agent-sdk` `query()` + `AgentDefinition` · structured JSON returned via the final `result` message and injected back into the orchestrator history as a tool-result
 - **Knowledge base**: `@tobilu/qmd` auto-installed · 3 collections under `~/.sfwiz/knowledge/` (`apex-ref` omit ConnectApi, `lwc-guide`, `sf-releases` current+prev-2 seasons) · MCP wire or in-proc stdio
 - **Continuous learning**: opt-in Bun Worker · daily 03:00 local + on-boot drift · `fetch` + cheerio + turndown · polite 1 rps per host · ETag/Last-Modified cache
 - **`ask_user` tool**: first-class + always-allowed · inline modal over chat · mandatory gate before `sf_deploy_start` / `sf_scratch_create` / `sf_assign_permset`
@@ -227,7 +200,7 @@ For multi-step tasks, state a brief plan with verify steps before coding.
 2. **sf CLI owns lifecycle · jsforce owns runtime API.** Do not re-implement what `sf` already does (scratch, deploy, test, retrieve).
 3. **Tool-use integration test FIRST** in M3 (`tests/agent/loop.integration.test.ts`). Guards the tool-schema-forwarding bug observed in a prior prototype (LLM SDK silently dropped the `tools` array on the outgoing request).
 4. **Reviewer persona read-only.** Tool-scope strictly `ask_user`, `read_file`, `list_files`, `grep`, `sf_query`, `sf_sobject_describe`, `qmd_query`.
-5. **Streaming mandatory from M3.** `anthropic.messages.stream()` for the main loop; `query()` async generator for subagents. Never the non-streaming `messages.create()` for interactive turns.
+5. **Streaming mandatory from M3.** `anthropic.messages.stream()` for the orchestrator; `query()` async generator for persona subagents. Never the non-streaming `messages.create()` for interactive turns.
 6. **Zero-config happy path**: if `sf` is logged in and `ANTHROPIC_API_KEY` set, `sfwiz` must work without further prompts (except first-run wizard).
 7. **Every Zod schema gets a malformed-input test.** Phase-5 §2.
 
@@ -253,7 +226,6 @@ bunx biome format --write .          # apply formatting
 bun scripts/build.ts                 # bun build --compile → dist/sfwiz
 ./dist/sfwiz                         # run compiled binary
 ./dist/sfwiz --first-run             # force re-run setup wizard
-./dist/sfwiz --plain                 # no-ANSI mode for CI / SSH
 ```
 
 ## Internal references (moved)

@@ -1,5 +1,5 @@
-import { useKeyboard } from '@opentui/react';
 import type { TextareaRenderable } from '@opentui/core';
+import { useKeyboard } from '@opentui/react';
 import type React from 'react';
 import type { PaletteEntry } from '~/types/ui';
 
@@ -15,7 +15,7 @@ interface Key {
   preventDefault: () => void;
 }
 
-export type OverlayName = 'trust' | 'palette' | 'help' | 'modal' | null;
+export type OverlayName = 'trust' | 'palette' | 'help' | 'modal' | 'perm' | 'wizard' | null;
 
 export interface TrustHandlers {
   onUp: () => void;
@@ -44,6 +44,21 @@ export interface HelpHandlers {
 export interface ModalHandlers {
   onUp: () => void;
   onDown: () => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+export interface PermHandlers {
+  onUp: () => void;
+  onDown: () => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+export interface WizardHandlers {
+  onUp: () => void;
+  onDown: () => void;
+  onConfirm: () => void;
   onClose: () => void;
 }
 
@@ -74,6 +89,8 @@ export function useGlobalKeys(
   palette: PaletteHandlers,
   help: HelpHandlers,
   modal: ModalHandlers,
+  perm: PermHandlers,
+  wizard: WizardHandlers,
   global: GlobalHandlers,
 ): void {
   useKeyboard((key: Key) => {
@@ -147,12 +164,47 @@ export function useGlobalKeys(
       } else if (key.name === 'down') {
         modal.onDown();
         key.preventDefault();
-      } else if (
-        key.name === 'return' ||
-        key.name === 'escape' ||
-        (key.ctrl && key.name === 'k')
-      ) {
+      } else if (key.name === 'return') {
+        modal.onConfirm();
+        key.preventDefault();
+      } else if (key.name === 'escape' || (key.ctrl && key.name === 'k')) {
         modal.onClose();
+        key.preventDefault();
+      }
+      return;
+    }
+
+    // ── First-run wizard overlay ───────────────────────────────────────────
+    if (overlay === 'wizard') {
+      if (key.name === 'up') {
+        wizard.onUp();
+        key.preventDefault();
+      } else if (key.name === 'down') {
+        wizard.onDown();
+        key.preventDefault();
+      } else if (key.name === 'return') {
+        wizard.onConfirm();
+        key.preventDefault();
+      } else if (key.name === 'escape') {
+        wizard.onClose();
+        key.preventDefault();
+      }
+      return;
+    }
+
+    // ── Permission prompt overlay ──────────────────────────────────────────
+    if (overlay === 'perm') {
+      if (key.name === 'up') {
+        perm.onUp();
+        key.preventDefault();
+      } else if (key.name === 'down') {
+        perm.onDown();
+        key.preventDefault();
+      } else if (key.name === 'return') {
+        perm.onConfirm();
+        key.preventDefault();
+      } else if (key.name === 'escape') {
+        perm.onClose();
         key.preventDefault();
       }
       return;

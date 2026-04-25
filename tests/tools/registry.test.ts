@@ -7,7 +7,7 @@ const stubCtx: ToolContext = {
   org: null,
   session: { id: 'test', projectRoot: '/tmp' },
   emit: () => {},
-  askUser: async () => ({ selected: 'yes', notes: null }),
+  askUser: async () => ({ selected: 'yes', notes: null, cancelled: false }),
 };
 
 const pingTool = {

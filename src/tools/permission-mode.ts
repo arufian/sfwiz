@@ -2,11 +2,7 @@ import { resolve } from 'path';
 import type { PermissionMode } from '~/config/schema';
 
 /** SF destructive ops: always prompt regardless of permission mode. */
-const ALWAYS_PROMPT = new Set([
-  'sf_deploy_start',
-  'sf_scratch_create',
-  'sf_assign_permset',
-]);
+const ALWAYS_PROMPT = new Set(['sf_deploy_start', 'sf_scratch_create', 'sf_assign_permset']);
 
 /** Shell commands: prompt in ask + auto-edit, auto-allow in yolo. */
 const SHELL_TOOLS = new Set(['run_command']);
@@ -51,17 +47,16 @@ export class PermissionModeGuard {
     if (FILE_READ_TOOLS.has(toolName)) {
       return this.isInsideCwd(args.path ?? args.dir ?? args.cwd);
     }
-    // Writes and shell always prompt in ask mode.
-    return false;
+    if (FILE_WRITE_TOOLS.has(toolName)) return false;
+    if (SHELL_TOOLS.has(toolName)) return false;
+    // Unknown tool kinds (ask_user, jsforce queries, qmd_query, ...): auto-allow.
+    return true;
   }
 
   private autoEditPolicy(toolName: string, args: Record<string, unknown>): boolean {
-    if (FILE_READ_TOOLS.has(toolName)) return true; // reads anywhere: auto
-    if (FILE_WRITE_TOOLS.has(toolName)) {
-      return this.isInsideCwd(args.path);
-    }
-    // Shell and unknown: still prompt.
+    if (FILE_READ_TOOLS.has(toolName)) return true;
+    if (FILE_WRITE_TOOLS.has(toolName)) return this.isInsideCwd(args.path);
     if (SHELL_TOOLS.has(toolName)) return false;
-    return false;
+    return true;
   }
 }

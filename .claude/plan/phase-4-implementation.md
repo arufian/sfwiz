@@ -2,6 +2,8 @@
 
 Status: **ready**. Next: `phase-5-test.md`.
 
+> **2026-04-25 update — only the "Best Managed Agents" prize narrative was dropped.** Architecture stands: orchestrator (`@anthropic-ai/sdk` `messages.stream()`) drives 6 persona subagents via `@anthropic-ai/claude-agent-sdk` `query()`. M3 / M11 / M13 acceptance criteria stay in force. **TODO next session**: wire `src/agent/router.ts` → 6 persona subagents into `src/tui/App.tsx` (subagent dispatch is currently in-tree but unused at runtime).
+
 Contract for the build. Milestones executed in order unless marked parallel-safe. Each future session can pick up a single milestone without loading the whole plan.
 
 ---
@@ -17,7 +19,7 @@ Contract for the build. Milestones executed in order unless marked parallel-safe
 - **Schemas**: Zod everywhere config / tool args / persona artifacts / session records cross trust boundaries. Infer types from Zod, not the other way round.
 - **Imports**: bare specifiers + `~/*` path alias to `src/*`. Relative imports only within a feature folder.
 - **No deps beyond whitelist**:
-  - Runtime: `@anthropic-ai/sdk` (main loop — `messages.stream()` + manual tool dispatch + prompt-caching beta), `@anthropic-ai/claude-agent-sdk` (≥ 0.2.111 — subagents via `query()` + `AgentDefinition`; Opus 4.7 requires this version floor), `@modelcontextprotocol/sdk`, `jsforce`, `@salesforce/core`, `@opentui/react`, `@opentui/core`, `react`, `react-reconciler`, `chokidar`, `cheerio`, `turndown`, `zod`, `dayjs`. **Ink removed** (swapped to opentui during PoC). **Vercel AI SDK removed** (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`, `@ai-sdk/groq`) — v1 is Anthropic-only; multi-provider deferred to v2. Direct Anthropic SDK gives full control over the manual tool loop and avoids the cross-provider tool-call parity layer.
+  - Runtime: `@anthropic-ai/sdk` (orchestrator — `messages.stream()` + manual tool dispatch + prompt-caching beta), `@anthropic-ai/claude-agent-sdk` (≥ 0.2.111 — persona subagents via `query()` + `AgentDefinition`; Opus 4.7 requires this version floor), `@modelcontextprotocol/sdk`, `jsforce`, `@salesforce/core`, `@opentui/react`, `@opentui/core`, `react`, `react-reconciler`, `chokidar`, `cheerio`, `turndown`, `zod`, `dayjs`. **Ink removed** (swapped to opentui during PoC). **Vercel AI SDK removed** (`ai`, `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`, `@ai-sdk/groq`) — v1 is Anthropic-only; multi-provider deferred to v2. Direct Anthropic SDK gives full control over the manual tool loop and avoids the cross-provider tool-call parity layer.
   - Dev: `@biomejs/biome`, `bun-types`, `@types/turndown`.
 - **Commit style**: free-form but each milestone ends with a tagged commit `m01`, `m02`, … (tags, not branches).
 - **Cache discipline** (Anthropic): pass `betas: ['prompt-caching-2024-07-31']` to `anthropic.messages.stream()` and tag stable blocks (system prompt, tool-defs, pinned reference snippets) with `cache_control: { type: 'ephemeral' }`. The Agent SDK enables prompt caching by default for subagents — no explicit flag needed; just keep system prompts stable. Volatile knowledge results (qmd query output, fresh tool results) are NOT cached.
@@ -97,8 +99,8 @@ sfwiz/
 │  │  ├─ first-run.ts                orchestrates wizard steps
 │  │  └─ trust.ts                    trusted-workspaces.json CRUD (realpath-keyed)
 │  ├─ agent/
-│  │  ├─ loop.ts                     shared-loop messages.stream() + manual tool dispatch
-│  │  ├─ subagents.ts                Agent SDK query() wrapper for reviewer + qa + scraper-embed worker
+│  │  ├─ loop.ts                     orchestrator messages.stream() + manual tool dispatch
+│  │  ├─ subagents.ts                Agent SDK query() wrapper for the 6 persona subagents
 │  │  ├─ router.ts                   pick next persona, feedback dispatch
 │  │  ├─ cache-hints.ts              Anthropic cache_control helpers (ephemeral breakpoints)
 │  │  ├─ token-tracker.ts            per-session + per-persona counters
@@ -558,13 +560,17 @@ Format: **goal · acceptance · files touched · commands · test-first notes**.
 - Files: `src/tui/layout/DirTree.tsx`, `src/sf/source-tracking.ts`, `src/tui/events.ts`.
 - Commit `m12`.
 
-### M13 — Persona scaffold
+### M13 — Persona subagents
 
-- Goal: shared loop (`@anthropic-ai/sdk` `messages.stream()`, M3) runs `designer → developer → deploy-manager`; **subagents via `@anthropic-ai/claude-agent-sdk` `query()` + `AgentDefinition`** for reviewer + qa. Runtime `ask_user` gate enforced (M4 logic wired to real deploys).
+- Goal: orchestrator (`@anthropic-ai/sdk` `messages.stream()`, M3) selects one of 6 personas per turn; the chosen persona runs as an isolated subagent via `@anthropic-ai/claude-agent-sdk` `query()` + `AgentDefinition`. Runtime `ask_user` gate enforced (M4 logic wired to real deploys).
 - Acceptance:
   - `src/agent/subagents.ts` exposes a `runSubagent({ name, prompt, inputs, outputSchema })` helper that wraps `query()`. Each named subagent is declared as an `AgentDefinition` with explicit `tools` whitelist:
+    - `org-admin`: `tools: ["Read", "Glob", "Grep", "Bash"]` — Settings registry + permission/sharing changes via `sf` CLI. Model: `claude-sonnet-4-6`.
+    - `designer`: `tools: ["Read", "Glob", "Grep"]` — drafts design from sObject layout. Model: `claude-opus-4-7`.
+    - `developer`: `tools: ["Read", "Edit", "Write", "Glob", "Grep", "Bash"]` — Apex/LWC/test code. Model: `claude-sonnet-4-6`.
     - `reviewer`: `tools: ["Read", "Glob", "Grep"]` — read-only, returns structured JSON critique. Model: `claude-opus-4-7` (matches locked decision; voice-rich critique).
     - `qa`: `tools: ["Read", "Bash"]` — runs `sf apex run test --code-coverage` via Bash, returns `{ passed, coverage, failures }`. Model: `claude-sonnet-4-6`.
+    - `deploy-manager`: `tools: ["Read", "Bash"]` — confirms via `ask_user` then dispatches `sf project deploy start`. Model: `claude-sonnet-4-6`.
   - Subagent results consumed via the `query()` async generator: walk messages, capture `system/init.session_id` for resumption, parse the final `result` message into the Zod `outputSchema`.
   - Scripted conversation fixture runs through full flow with mocked Anthropic transport + Agent SDK `query()` stub; reviewer returns structured JSON; developer re-dispatch on issues.
   - Hooks demonstrated: a `PostToolUse` hook (matcher `Edit|Write`) writes an audit line per write — proves the SDK hook surface is wired even though reviewer is read-only.

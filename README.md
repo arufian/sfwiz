@@ -10,7 +10,7 @@
 
 **sfwiz** is a Claude-Code-style interactive TUI harness for the Salesforce ecosystem — built for Apex developers, LWC engineers, and Salesforce admins who want AI-assisted workflows without leaving the terminal.
 
-> Hackathon project — powered by Anthropic Claude (Managed Agents).
+> Hackathon project — powered by Anthropic Claude.
 
 ## Demo
 
@@ -18,14 +18,12 @@
 
 ## Architecture
 
-sfwiz uses a **hybrid Managed Agents** design:
-
-- **Main loop** (`@anthropic-ai/sdk` `messages.stream()`): designer → developer → deploy-manager personas
-- **Isolated subagents** (`@anthropic-ai/claude-agent-sdk` `query()`): reviewer (Opus 4.7, read-only) + qa (Sonnet 4.6) run as sandboxed agents with strict tool-scope
-- **Continuous-learn worker** (Bun Worker): daily scraper → qmd embed of Apex reference, LWC guide, and Salesforce release notes
-- **Prompt caching**: 4-breakpoint strategy — system block, last tool-def, stable history prefix, last assistant turn
-
-See [`docs/submission/managed-agents.md`](docs/submission/managed-agents.md) for the full Managed Agents write-up.
+- **Orchestrator** (`@anthropic-ai/sdk` `messages.stream()`): streaming tool-use with manual dispatch.
+- **6 persona subagents** (`@anthropic-ai/claude-agent-sdk` `query()`): org-admin · designer · developer · deploy-manager · reviewer · qa. Each runs as an isolated subagent with its own tool-scope and model (Opus 4.7 for reviewer + designer; Sonnet 4.6 for the rest). Structured JSON returned via the final `result` message is injected back into the orchestrator as a tool-result.
+- **Tools**: filesystem (read/edit/write/grep), shell, jsforce (SOQL/describe), `sf` CLI (deploy/scratch/permset/retrieve/tests/apex), and `ask_user` for confirmations.
+- **Continuous-learn worker** (Bun Worker, opt-in): daily scraper → qmd embed of Apex reference, LWC guide, and Salesforce release notes.
+- **Prompt caching**: 4-breakpoint strategy — system block, last tool-def, stable history prefix, last assistant turn.
+- **Safety**: destructive Salesforce ops (`sf_deploy_start` / `sf_scratch_create` / `sf_assign_permset`) are runtime-gated behind a mandatory `ask_user` confirmation regardless of permission mode.
 
 ## Quickstart
 
@@ -75,14 +73,17 @@ cp .env.example .env
 
 | Area | Commands / UI |
 |---|---|
-| Orgs | `/orgs` — list + switch SF orgs; auto-kicks `sf login web` if empty |
-| Deploy | `/deploy` — source-tracking diff → confirm → `sf project deploy start` |
-| Scratch orgs | `/scratch` — create, push, assign permset, open |
-| SOQL | `/query` — run SOQL with jsforce (standard + Tooling API) |
-| Apex | `/apex` — anonymous Apex execution |
-| Knowledge | `Ctrl+G` — embed Apex reference, LWC guide, SF release notes |
-| Command palette | `Ctrl+P` — fuzzy-search all commands + toggles |
-| Personas | designer → developer → reviewer → qa → deploy-manager |
+| Orgs | `/orgs` — list authenticated Salesforce orgs |
+| Login | `/login` — authenticate a new Salesforce org |
+| Knowledge | `/knowledge` (alias `/kb`) — manage knowledge base (qmd) |
+| Learn | `/learn` — control continuous learning worker |
+| Permissions | `/permissions` — view or change permission mode (ask / auto-edit / yolo) |
+| Sessions | `/sessions` — browse and resume prior sessions |
+| Model | `/model` — switch active Claude model |
+| Help | `/help` — show keybindings and commands |
+| Quit | `/quit` (alias `/exit`) — exit sfwiz |
+| Command palette | `Ctrl+P` — fuzzy-search commands + toggles |
+| Tool surface (LLM-driven) | Apex anonymous, SOQL/describe, deploy/retrieve, scratch create, permset assign, run tests |
 
 ## Keyboard shortcuts
 
@@ -90,10 +91,8 @@ cp .env.example .env
 |---|---|
 | `Ctrl+P` | Command palette |
 | `Ctrl+W` | Trust workspace |
-| `Shift+Tab` | Cycle permission mode (ask → auto → yolo) |
-| `Ctrl+G` | Knowledge embed progress |
-| `Ctrl+Y` | Thinking loader demo |
-| `Ctrl+R` | Deploy progress demo |
+| `Shift+Tab` | Cycle permission mode (ask → auto-edit → yolo) |
+| `Ctrl+B` | Toggle directory tree |
 | `Ctrl+Q` | Quit |
 
 ## Build from source
@@ -113,13 +112,13 @@ bun scripts/build.ts --bundle
 
 ```
 src/
-  cli.ts           Entry point (argv → TUI or --plain)
-  agent/           AgentLoop + cache hints + subagent orchestration
+  cli.ts           Entry point (argv → TUI)
+  agent/           Orchestrator loop + subagent dispatcher + cache hints
   config/          Config schema + first-run wizard + trust
   dispatcher/      Command registry + slash-command handlers
   knowledge/       qmd integration + collection bootstrap
   learn/           Background worker + scheduler + event bus
-  personas/        5 personas + gate enforcement
+  personas/        Persona registry + gate
   scraper/         HTML→Markdown adapters + season detection
   sf/              @salesforce/core auth + jsforce connection
   tools/           All tool definitions (SF CLI + jsforce + system)
