@@ -201,17 +201,11 @@ For multi-step tasks, state a brief plan with verify steps before coding.
 
 ## Commands
 
-Phase-3 PoC (current):
+> **NEVER use `bun run poc`. PoC phase is done. Use the commands below.**
 
 ```bash
 bun install                          # install deps
-bun run poc                          # launch PoC TUI (src/poc.tsx) in real terminal
-```
-
-M1+ commands (wired):
-
-```bash
-bun scripts/dev.ts                   # watch + restart TUI
+bun scripts/dev.ts                   # watch + restart TUI (dev/QA)
 bun test                             # run all tests
 bun test tests/agent/loop.*          # run a single test file
 bun test --coverage                  # 80% lines / 70% branches gate
@@ -219,7 +213,7 @@ bun scripts/check-coverage.ts        # enforce gate
 bunx biome ci                        # lint + format check
 bunx biome format --write .          # apply formatting
 bun scripts/build.ts                 # bun build --compile → dist/sfwiz
-./dist/sfwiz                         # run compiled binary
+./dist/sfwiz                         # run compiled binary (QA/demo)
 ./dist/sfwiz --first-run             # force re-run setup wizard
 ```
 
