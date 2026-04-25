@@ -16,7 +16,7 @@ export type LLMConfig = z.infer<typeof LLMConfig>;
 export const KnowledgeConfig = z.object({
   dir: z.string().default('~/.sfwiz/knowledge'),
   collections: z
-    .array(z.enum(['apex-ref', 'lwc-guide', 'sf-releases']))
+    .array(z.enum(['apex-ref', 'lwc-guide', 'sf-releases', 'sf-cli-ref']))
     .default(['apex-ref', 'lwc-guide', 'sf-releases']),
   qmdBin: z.string().default('qmd'),
   autoInstall: z.boolean().default(true),
@@ -65,7 +65,7 @@ export const Config = z.object({
     .default(() => ({ enabled: false })),
   knowledge: KnowledgeConfig.default(() => ({
     dir: '~/.sfwiz/knowledge',
-    collections: ['apex-ref', 'lwc-guide', 'sf-releases'] as ('apex-ref' | 'lwc-guide' | 'sf-releases')[],
+    collections: ['apex-ref', 'lwc-guide', 'sf-releases', 'sf-cli-ref'] as ('apex-ref' | 'lwc-guide' | 'sf-releases' | 'sf-cli-ref')[],
     qmdBin: 'qmd',
     autoInstall: true,
   })),

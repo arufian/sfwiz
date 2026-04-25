@@ -23,10 +23,10 @@ import { checkPersonaGate } from '~/personas/gate';
 import { PERSONA_REGISTRY, getPersona } from '~/personas/registry';
 
 describe('persona gate', () => {
-  test('reviewer blocked from Write', () => {
+  test('reviewer allowed to Write (for docs/review-report.md)', () => {
+    // Reviewer may write the review report — Write is no longer blocked.
     const r = checkPersonaGate('reviewer', 'Write');
-    expect(r.allowed).toBe(false);
-    expect(r.reason).toContain('read-only');
+    expect(r.allowed).toBe(true);
   });
 
   test('reviewer blocked from Edit', () => {
@@ -78,7 +78,9 @@ describe('persona registry', () => {
 
   test('designer uses subagent (SDK isolation)', () => {
     expect(getPersona('designer').executionMode).toBe('subagent');
-    expect(getPersona('designer').agentDefinition.tools).toEqual(['Read', 'Glob', 'Grep']);
+    // Designer now writes docs/design.md — requires Write tool.
+    expect(getPersona('designer').agentDefinition.tools).toContain('Write');
+    expect(getPersona('designer').agentDefinition.tools).toContain('Read');
     expect(getPersona('designer').agentDefinition.model).toBe('claude-opus-4-7');
   });
 
@@ -90,7 +92,9 @@ describe('persona registry', () => {
 
   test('deploy-manager uses subagent', () => {
     expect(getPersona('deploy-manager').executionMode).toBe('subagent');
-    expect(getPersona('deploy-manager').agentDefinition.tools).toEqual(['Read', 'Bash']);
+    // Deploy manager now generates loadTestData.apex + calls sf org assign permset.
+    expect(getPersona('deploy-manager').agentDefinition.tools).toContain('Read');
+    expect(getPersona('deploy-manager').agentDefinition.tools).toContain('Bash');
   });
 
   test('all 6 personas defined', () => {
@@ -99,17 +103,23 @@ describe('persona registry', () => {
 });
 
 describe('agent definitions (H1 subagent:* observability)', () => {
-  test('reviewer tools are read-only', () => {
-    expect(REVIEWER_AGENT.tools).toEqual(['Read', 'Glob', 'Grep']);
+  test('reviewer tools include Write for review report', () => {
+    // Reviewer writes docs/review-report.md — Write is required.
+    expect(REVIEWER_AGENT.tools).toContain('Write');
+    expect(REVIEWER_AGENT.tools).toContain('Read');
+    // Edit and Bash remain blocked via gate.
+    expect(REVIEWER_AGENT.tools).not.toContain('Edit');
+    expect(REVIEWER_AGENT.tools).not.toContain('Bash');
   });
 
   test('reviewer model is opus-4-7', () => {
     expect(REVIEWER_AGENT.model).toBe('claude-opus-4-7');
   });
 
-  test('qa tools include Bash', () => {
+  test('qa tools include Bash and Write for test spec', () => {
     expect(QA_AGENT.tools).toContain('Bash');
-    expect(QA_AGENT.tools).not.toContain('Write');
+    // QA writes docs/test-spec.md — Write required.
+    expect(QA_AGENT.tools).toContain('Write');
   });
 
   test('qa model is sonnet-4-6', () => {

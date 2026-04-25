@@ -9,7 +9,7 @@ export function HelpOverlay() {
     ['Shift/Alt+Enter', 'newline in input'],
     ['Ctrl+B', 'toggle file tree'],
     ['Alt+[ / Alt+]', 'cycle side panel view'],
-    ['Shift+Tab', 'cycle perm mode (ask/auto/yolo)'],
+    ['Shift+Tab', 'cycle perm mode (ask/edit/auto)'],
     ['Ctrl+T', 'toggle toast bar'],
     ['/ (at empty input)', 'open command palette'],
     ['Ctrl+P', 'command palette'],

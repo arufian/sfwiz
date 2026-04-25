@@ -38,7 +38,7 @@ export const PERMISSION_CHOICES: { id: PermissionMode; label: string; desc: stri
   },
   {
     id: 'yolo',
-    label: 'yolo       (auto-allow all non-destructive ops)',
+    label: 'auto       (auto-allow all non-destructive ops)',
     desc: 'Fastest. Destructive SF ops are still gated.',
   },
 ];

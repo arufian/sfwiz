@@ -1,5 +1,6 @@
+import { basename } from 'path';
 import type { SideView } from '~/types/ui';
-import { ACCENT, DIM, OK } from '~/ui/theme';
+import { ACCENT, DIM } from '~/ui/theme';
 import { DeployView, type DeployData } from '~/ui/side/DeployView';
 import { KnowledgeView, type KnowledgeData } from '~/ui/side/KnowledgeView';
 import { PersonaView } from '~/ui/side/PersonaView';
@@ -10,24 +11,17 @@ import { TokensView, type TokensBreakdown } from '~/ui/side/TokensView';
 export interface OrgSummary {
   alias: string;
   status: 'connected' | 'disconnected';
-  /** Optional — only set for scratch orgs. */
   scratchDaysLeft?: number;
 }
 
 export interface ModelSummary {
-  /** Provider id, e.g. "anthropic". */
   provider: string;
-  /** Display name, e.g. "Sonnet 4.6" — not the raw model id. */
   name: string;
 }
 
 export interface TokenSummary {
   used: number;
   estimatedCostUsd: number;
-}
-
-function fmtTokens(n: number): string {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
 function LogoBlock() {
@@ -43,43 +37,15 @@ function LogoBlock() {
   );
 }
 
-function MetaBlock({
-  org,
-  model,
-  tokens,
-}: {
-  org: OrgSummary | null;
-  model: ModelSummary | null;
-  tokens: TokenSummary | null;
-}) {
+function CwdBlock({ cwd }: { cwd: string }) {
+  const home = process.env.HOME ?? '';
+  const display = home && cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd;
+  const dir = basename(display);
   return (
     <box style={{ flexDirection: 'column', marginTop: 1 }}>
-      <text content="Salesforce" style={{ fg: DIM }} />
-      {org ? (
-        <>
-          <box style={{ flexDirection: 'row' }}>
-            <text content="● " style={{ fg: org.status === 'connected' ? OK : DIM }} />
-            <text content={org.alias} />
-          </box>
-          {typeof org.scratchDaysLeft === 'number' ? (
-            <text content={` scratch · ${org.scratchDaysLeft} days left`} style={{ fg: DIM }} />
-          ) : null}
-        </>
-      ) : (
-        <text content=" no org · /login or /orgs" style={{ fg: DIM }} />
-      )}
-      <box style={{ marginTop: 1 }}>
-        <text content="Model" style={{ fg: DIM }} />
-      </box>
-      <text content={model?.name ?? 'not set'} />
-      {tokens ? (
-        <box style={{ flexDirection: 'row' }}>
-          <text content={`${fmtTokens(tokens.used)} `} style={{ fg: DIM }} />
-          <text content={`$${tokens.estimatedCostUsd.toFixed(2)}`} style={{ fg: ACCENT }} />
-        </box>
-      ) : (
-        <text content="0 tokens" style={{ fg: DIM }} />
-      )}
+      <text content="cwd" style={{ fg: DIM }} />
+      <text content={dir} />
+      <text content={display} style={{ fg: DIM }} />
     </box>
   );
 }
@@ -115,15 +81,15 @@ export interface SidePanelData {
 
 export function SidePanel({
   view,
-  org,
-  model,
-  tokens,
+  cwd,
   data,
 }: {
   view: SideView;
-  org: OrgSummary | null;
-  model: ModelSummary | null;
-  tokens: TokenSummary | null;
+  cwd: string;
+  /** Legacy props kept for compatibility — no longer rendered (status bar shows them). */
+  org?: OrgSummary | null;
+  model?: ModelSummary | null;
+  tokens?: TokenSummary | null;
   data?: SidePanelData;
 }) {
   return (
@@ -138,7 +104,7 @@ export function SidePanel({
       }}
     >
       <LogoBlock />
-      <MetaBlock org={org} model={model} tokens={tokens} />
+      <CwdBlock cwd={cwd} />
       <box style={{ marginTop: 1, flexDirection: 'row' }}>
         <text content={view} />
         <text content=" · Alt+[ ] cycle" style={{ fg: DIM }} />

@@ -95,10 +95,12 @@ import { sfSobjectDescribe } from '~/tools/jsforce/sf_sobject_describe';
 import { sfApexRunAnonymous } from '~/tools/sf-cli/sf_apex_run_anonymous';
 import { sfAssignPermset } from '~/tools/sf-cli/sf_assign_permset';
 import { sfDeployStart } from '~/tools/sf-cli/sf_deploy_start';
+import { sfOpenOrg } from '~/tools/sf-cli/sf_open_org';
 import { sfRetrieve } from '~/tools/sf-cli/sf_retrieve';
 import { sfRunTests } from '~/tools/sf-cli/sf_run_tests';
 import { sfScratchCreate } from '~/tools/sf-cli/sf_scratch_create';
 import { runCommandTool } from '~/tools/shell/run_command';
+import { connectCommand } from '~/dispatcher/commands/connect';
 
 const TRUST_PATH = join(homedir(), '.sfwiz', 'trusted-workspaces.json');
 const PERMISSIONS_PATH = join(homedir(), '.sfwiz', 'permissions.json');
@@ -284,6 +286,7 @@ const ALL_TOOLS = [
   sfScratchCreate,
   sfQuery,
   sfSobjectDescribe,
+  sfOpenOrg,
 ];
 
 export function App({
@@ -512,6 +515,7 @@ export function App({
   const loopRef = useRef<AgentLoop | null>(null);
   const toolInputsRef = useRef<Map<string, unknown>>(new Map());
   const conversationHistoryRef = useRef<MessageParam[]>([]);
+  const blocksRef = useRef<ChatBlock[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
   // Per-cwd session id. Generated lazily on first persisted block.
@@ -745,6 +749,7 @@ export function App({
 
   // --- session persistence: append new blocks + update meta ---
   useEffect(() => {
+    blocksRef.current = blocks;
     const start = lastPersistedBlockCountRef.current;
     if (blocks.length <= start) return;
     for (let i = start; i < blocks.length; i++) {
@@ -759,6 +764,24 @@ export function App({
       touchSession(sessionIdRef.current, cwd, blocks);
     } catch {}
   }, [blocks, cwd]);
+
+  // --- Save session meta on process exit (Ctrl+C, SIGTERM, etc.) ---
+  useEffect(() => {
+    const saveOnExit = () => {
+      const current = blocksRef.current;
+      const hasChat = current.some((b) => b.kind === 'user' || b.kind === 'assistant');
+      if (hasChat) {
+        try { touchSession(sessionIdRef.current, cwd, current); } catch {}
+      }
+    };
+    process.on('exit', saveOnExit);
+    process.on('SIGINT', () => { saveOnExit(); process.exit(0); });
+    process.on('SIGTERM', () => { saveOnExit(); process.exit(0); });
+    return () => {
+      process.off('exit', saveOnExit);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwd]);
 
   // --- learnBus ---
   useEffect(() => {
@@ -877,7 +900,7 @@ export function App({
       case 'auto_mode':
         modeRef.current = 'yolo'; // sync so promptPermission sees it before re-render
         setMode('yolo');
-        setToast('permission mode: YOLO · auto-approve all non-destructive ops');
+        setToast('permission mode: AUTO · auto-approve all non-destructive ops');
         allow = true;
         break;
       case 'deny':
@@ -1065,7 +1088,7 @@ export function App({
       const next = PERMISSION_MODES[(i + 1) % PERMISSION_MODES.length] ?? 'ask';
       setToast(
         next === 'yolo'
-          ? 'permission mode: YOLO'
+          ? 'permission mode: AUTO'
           : next === 'auto-edit'
             ? 'permission mode: AUTO'
             : 'permission mode: ASK',
@@ -1083,9 +1106,9 @@ export function App({
       inputRef.current?.setText('');
 
       // Static toggles
-      if (label === 'Yolo Mode') {
+      if (label === 'Auto Mode') {
         setMode('yolo');
-        setToast('permission mode: YOLO · auto-approve all non-destructive ops');
+        setToast('permission mode: AUTO · auto-approve all non-destructive ops');
         return;
       }
       if (label === 'Thinking Mode') {
@@ -1188,19 +1211,32 @@ export function App({
             ? `Authenticated orgs (${result.orgs.length}):\n${result.orgs.map((o) => `  ${o.alias ?? '(no alias)'} — ${o.username}${o.isDefault ? ' [default]' : ''}${o.isDefaultDevHub ? ' [devhub]' : ''}`).join('\n')}`
             : result.kicked
               ? 'Login finished. Run /orgs again to refresh the list.'
-              : 'No orgs authenticated. Run /login to add one.';
+              : 'No orgs authenticated. Run /connect to add one.';
           setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: lines }]);
-        } else if (cmd.handler === 'login') {
-          const result = await loginCommand(ctx);
-          if (result.kicked) void refreshOrg();
+        } else if (cmd.handler === 'connect' || cmd.handler === 'login') {
+          const result = await connectCommand(ctx, cwd);
+          if (result.connected) void refreshOrg();
           setBlocks((bs) => [
             ...bs,
             {
               id: crypto.randomUUID(),
               kind: 'assistant',
-              text: result.kicked ? 'Login completed.' : 'Login skipped.',
+              text: result.connected
+                ? result.alias
+                  ? `Connected to **${result.alias}** ✓`
+                  : 'New org connected. Run /orgs to refresh.'
+                : 'Cancelled.',
             },
           ]);
+        } else if (cmd.handler === 'open-org') {
+          const targetOrg = currentOrgHandle?.alias ?? currentOrgHandle?.username;
+          if (!targetOrg) {
+            setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: 'No org connected. Run /connect first.' }]);
+          } else {
+            const { spawnSync } = await import('child_process');
+            spawnSync('sf', ['org', 'open', '--target-org', targetOrg], { encoding: 'utf8', timeout: 30_000 });
+            setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: `Opened **${targetOrg}** in browser.` }]);
+          }
         } else if (cmd.handler === 'learn') {
           const answer = await askUser({
             question: 'Continuous learning worker',
@@ -1674,9 +1710,7 @@ export function App({
           <SplashView tip={splashTip} />
           <SidePanel
             view={sideView}
-            org={currentOrg}
-            model={modelSummaryFromId(currentModelId)}
-            tokens={tokens.used > 0 ? tokens : null}
+            cwd={cwd}
             data={sidePanelData}
           />
         </box>
@@ -1695,9 +1729,7 @@ export function App({
           />
           <SidePanel
             view={sideView}
-            org={currentOrg}
-            model={modelSummaryFromId(currentModelId)}
-            tokens={tokens.used > 0 ? tokens : null}
+            cwd={cwd}
             data={sidePanelData}
           />
         </box>

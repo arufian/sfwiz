@@ -8,6 +8,7 @@ import { isRunDue, defaultSchedulerOptions, type SchedulerState } from '~/learn/
 import { detectQmd, requireQmd } from '~/knowledge/detect';
 import { bootstrapCollections, COLLECTIONS } from '~/knowledge/collections';
 import { runEmbed } from '~/knowledge/embed';
+import { fetchSfCliRef } from '~/learn/sf-cli-fetcher';
 
 const opts = defaultSchedulerOptions({ bootDriftMs: 30_000, pollIntervalMs: 60_000 });
 const state: SchedulerState = { lastRunAt: null, status: 'idle' };
@@ -26,6 +27,13 @@ async function runLearning() {
 
   state.status = 'running';
   send({ type: 'status', status: 'running', lastRunAt: state.lastRunAt });
+
+  // Fetch SF CLI reference docs before embedding
+  try {
+    await fetchSfCliRef();
+  } catch (err) {
+    send({ type: 'error', message: `sf-cli-ref fetch: ${String(err)}` });
+  }
 
   for (const col of COLLECTIONS) {
     try {

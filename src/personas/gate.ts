@@ -3,12 +3,13 @@ import type { PersonaName } from '~/agent/router';
 /** Personas allowed to run destructive SF operations. */
 const DEPLOY_PERSONAS = new Set<PersonaName>(['developer', 'deploy-manager']);
 
-/** Reviewer is strictly read-only — enforce at persona gate level. */
+/** Reviewer is read-only for code — but may write the review report file. */
 const READ_ONLY_PERSONAS = new Set<PersonaName>(['reviewer']);
 
-/** Tools always blocked for the reviewer persona (belt + suspenders, also enforced via subagent tool list). */
+/** Tools always blocked for the reviewer persona (belt + suspenders, also enforced via subagent tool list).
+ *  Write is intentionally excluded: reviewer needs it to produce docs/review-report.md.
+ */
 const REVIEWER_BLOCKED_TOOLS = new Set([
-  'Write',
   'Edit',
   'Bash',
   'sf_deploy_start',

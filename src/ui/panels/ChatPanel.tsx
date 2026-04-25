@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { CAPABILITY_HINTS, SPLASH_TIPS } from '~/fixtures/misc';
 import type { ChatBlock } from '~/types/ui';
 import { ACCENT, BORDER, DIM, ERR, INFLIGHT, OK, WARN } from '~/ui/theme';
+import { MarkdownLine } from '~/ui/util/markdown';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function ChatBlocks({
           return (
             <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
               {b.text.split('\n').map((line, j) => (
-                <text key={`${key}-${j}`} content={line} />
+                <MarkdownLine key={`${key}-${j}`} line={line} />
               ))}
             </box>
           );

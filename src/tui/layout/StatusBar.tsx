@@ -71,8 +71,8 @@ export function StatusBar({ org, modelName, tokens, mode, qmdInstalled, embedsDo
   })();
 
   const modeBadge = (() => {
-    if (mode === 'yolo') return { text: 'YOLO', color: WARN };
-    if (mode === 'auto-edit') return { text: 'AUTO', color: INFLIGHT };
+    if (mode === 'yolo') return { text: 'AUTO', color: WARN };
+    if (mode === 'auto-edit') return { text: 'EDIT', color: INFLIGHT };
     return { text: 'ASK', color: DIM };
   })();
 

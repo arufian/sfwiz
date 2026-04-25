@@ -5,7 +5,7 @@ import { spawnSync } from 'child_process';
 
 export const KNOWLEDGE_DIR = join(homedir(), '.sfwiz', 'knowledge');
 
-export type CollectionName = 'apex-ref' | 'lwc-guide' | 'sf-releases';
+export type CollectionName = 'apex-ref' | 'lwc-guide' | 'sf-releases' | 'sf-cli-ref';
 
 export interface CollectionSpec {
   name: CollectionName;
@@ -32,6 +32,12 @@ export const COLLECTIONS: CollectionSpec[] = [
     dir: join(KNOWLEDGE_DIR, 'sf-releases'),
     pattern: '**/*.md',
     description: 'Salesforce Release Notes (current + previous 2 seasons)',
+  },
+  {
+    name: 'sf-cli-ref',
+    dir: join(KNOWLEDGE_DIR, 'sf-cli-ref'),
+    pattern: '**/*.md',
+    description: 'Salesforce CLI (sf) unified command reference',
   },
 ];
 
