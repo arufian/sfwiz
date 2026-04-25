@@ -4,17 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-25: Phase 4 M1–M6 complete. 64 tests pass, 0 TypeScript errors. Next: M7 (SF auth).**
+**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. 190 tests pass, 0 TypeScript errors. Binary: `dist/sfwiz` (65.6 MB). Tagged `v0.1.0`.**
 
-Phase 4 implementation underway. M1–M6 shipped and tagged (`m01`–`m06`). Key deliverables:
-- **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tsconfig.json` updated, `tests/sanity.test.ts`, `tests/llm/agent-sdk-smoke.test.ts` (H4 guard)
+Phase 4 fully shipped. M1–M18 tagged (`m01`–`m18`, `v0.1.0`). Key deliverables by milestone:
+- **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tests/sanity.test.ts`, H4 smoke test
 - **M2**: Zod schemas — `src/config/schema.ts`, `src/personas/types.ts`, `src/session/types.ts`, `src/scraper/types.ts`, `src/tools/types.ts`
-- **M3**: AgentLoop — `src/llm/client.ts` (singleton + reset), `src/agent/types.ts` (AgentEventMap incl. `subagent:*` H1 events), `src/agent/cache-hints.ts` (4-breakpoint caching H3), `src/agent/loop.ts` (streaming tool-use loop), `tests/agent/loop.integration.test.ts` (H2 mock-fetch SSE guard)
-- **M4**: Tool registry + permission gates — `src/tools/registry.ts`, `src/tools/gate.ts` (DestructiveOpGate), `src/tools/permission-mode.ts` (PermissionModeGuard)
-- **M5**: Core tools — `src/tools/interaction/ask_user.ts`, `src/tools/fs/` (read/list/edit/write/grep), `src/tools/shell/run_command.ts` (whitelist)
-- **M6**: Config/trust — `src/config/trust.ts` (TrustStore, corruption backup), `src/config/load.ts`, `src/config/save.ts`, `src/config/first-run.ts`, `src/llm/models-catalog.ts`; TuiEventBus in `src/tui/events.ts`
+- **M3**: AgentLoop — `src/llm/client.ts`, `src/agent/cache-hints.ts` (4-breakpoint), `src/agent/loop.ts` (streaming tool-use), H2 mock-fetch SSE guard
+- **M4**: Tool registry + permission gates — `src/tools/registry.ts`, `src/tools/gate.ts`, `src/tools/permission-mode.ts`
+- **M5**: Core tools — `src/tools/interaction/ask_user.ts`, `src/tools/fs/`, `src/tools/shell/run_command.ts`
+- **M6**: Config/trust — `src/config/trust.ts`, `src/config/load.ts`, `src/config/save.ts`, `src/config/first-run.ts`, `src/tui/events.ts`
+- **M7**: SF auth — `src/sf/auth.ts` (`@salesforce/core` passthrough), `src/sf/orgs.ts`, `src/sf/login-kick.ts`, `/orgs` command
+- **M8**: jsforce connection + SF tools — `src/sf/connection.ts`, `src/sf/project.ts`, `src/sf/source-tracking.ts`, `src/tools/sf-cli/sf_deploy_start.ts`, `src/tools/sf-cli/sf_apex_run_anonymous.ts`, `src/tools/jsforce/sf_query.ts`, `src/tools/jsforce/sf_sobject_describe.ts`
+- **M9**: Knowledge base — `src/knowledge/detect.ts`, `src/knowledge/collections.ts`, `src/knowledge/embed.ts`, `src/learn/bus.ts`, `src/tui/layout/StatusBar.tsx`
+- **M10**: Scraper + season detection — `src/scraper/season.ts`, `src/scraper/html-to-md.ts`, `src/scraper/adapters/apex-ref.ts`
+- **M11**: Learn scheduler + Bun Worker — `src/learn/scheduler.ts`, `src/learn/worker.ts`
+- **M12**: DirTree chokidar watcher — `src/tui/layout/DirTree.tsx` (source-tracking integration)
+- **M13**: Subagents (claude-agent-sdk) — `src/agent/subagents.ts` (REVIEWER_AGENT/QA_AGENT), `src/agent/router.ts`
+- **M14**: Persona gate + resources — `src/personas/gate.ts`, `src/personas/registry.ts`, `resources/personas/*.md` (5 personas), `resources/references/*.md` (10 guides)
+- **M15**: Command palette + fuzzy — `src/util/fuzzy.ts`, `src/dispatcher/registry.ts`, `src/tui/overlays/CommandPalette.tsx`
+- **M16**: Deferred (`.agent` viewer excluded from MVP per hackathon scope)
+- **M17**: Polish — `src/util/async.ts` (retry/throttle), `src/tui/views/TokensView.tsx`, cache-hints verification tests
+- **M18**: Packaging — `scripts/build.ts` (multi-platform `--all`), `README.md`, `.env.example`, `dist/sfwiz` binary verified
 
-Prior session (2026-04-24) layered 5 UX demos on PoC and split `src/poc.tsx` (~1860 lines) into `src/fixtures/`, `src/types/ui.ts`, `src/ui/theme.ts`, `src/ui/overlays/`, `src/ui/panels/`, `src/ui/side/`, `src/tui/App.tsx`. See `.claude/plan/progress-2026-04-24.md` for that log.
+Prior sessions: 2026-04-24 (PoC polish + 5 UX demos + poc.tsx split), 2026-04-25 (M1–M18 implementation).
 
 ## RULES
 
@@ -52,11 +64,11 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 
 ## Current phase
 
-**Phases 1, 2, 3 DONE. Phase 4 IN PROGRESS — M1–M6 done, next M7.**
+**Phases 1–4 COMPLETE. Next: Phase 6 (Video) — demo recording + submission.**
 
-M1–M6 shipped and tagged. M7 = SF auth (`@salesforce/core` passthrough) + `/orgs` slash command + `sf login web` kick when org list is empty.
+All 18 milestones shipped and tagged. Binary verified at `dist/sfwiz` (65.6 MB, darwin-arm64). 190 tests pass, 0 TypeScript errors.
 
-Next action for a fresh session: read `.claude/plan/phase-4-implementation.md` M7 spec. Install `jsforce` + `@salesforce/core` if not yet in `package.json`, then implement `src/sf/auth.ts` + `src/tools/sf/sf_list_orgs.ts`.
+Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo script + recording checklist. Then do submission-day prep (README demo-link update, `docs/submission/managed-agents.md`, repo flip).
 
 ## Phase map
 
@@ -66,12 +78,12 @@ Next action for a fresh session: read `.claude/plan/phase-4-implementation.md` M
 | 1 Research       | done                       | `.claude/plan/phase-1-research.md`       | read once to absorb prior-art + 18 locked decisions                     |
 | 2 Planning       | done                       | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session            |
 | 3 PoC (UI only)  | done (opentui)             | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1   |
-| 4 Implementation | in progress (M1–M6 done)   | `.claude/plan/phase-4-implementation.md` | **execute milestones in order**; each milestone is a standalone session |
+| 4 Implementation | **DONE** (M1–M18)          | `.claude/plan/phase-4-implementation.md` | all milestones shipped; tagged m01–m18 + v0.1.0                        |
 | 5 Test           | ready                      | `.claude/plan/phase-5-test.md`           | runs after each milestone, not at end                                   |
 | 6 Video          | ready                      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
 | —                | —                          | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                    |
 | —                | session hand-off           | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders)                       |
-| —                | session hand-off           | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M6 implementation (scaffolding → config/trust)                                       |
+| —                | session hand-off           | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified                              |
 
 ## Hackathon context
 

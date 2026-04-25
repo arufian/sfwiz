@@ -13,7 +13,7 @@ export function getSourceTrackingStatus(projectRoot: string, targetOrg: string):
   const result = spawnSync(
     'sf',
     ['project', 'deploy', 'preview', '--target-org', targetOrg, '--json'],
-    { cwd: projectRoot, encoding: 'utf8' },
+    { cwd: projectRoot, encoding: 'utf8', timeout: 4_000 },
   );
   if (result.error || result.status !== 0) return [];
 
