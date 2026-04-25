@@ -1,5 +1,5 @@
 import type { ToolContext } from '~/tools/types';
-import { listOrgsCli } from '~/sf/orgs';
+import { listOrgs } from '~/sf/auth';
 import { kickSfLoginWeb } from '~/sf/login-kick';
 import type { OrgEntry } from '~/sf/auth';
 
@@ -8,14 +8,10 @@ export interface OrgsCommandResult {
   kicked: boolean;
 }
 
-/**
- * /orgs command handler.
- * Lists authenticated orgs. If empty, asks user then kicks `sf login web`.
- */
 export async function orgsCommand(ctx: ToolContext): Promise<OrgsCommandResult> {
   let orgs: OrgEntry[];
   try {
-    orgs = listOrgsCli();
+    orgs = await listOrgs();
   } catch {
     orgs = [];
   }
@@ -37,7 +33,7 @@ export async function orgsCommand(ctx: ToolContext): Promise<OrgsCommandResult> 
   if (answer.selected === 'Yes') {
     await loginAndWait();
     try {
-      orgs = listOrgsCli();
+      orgs = await listOrgs();
     } catch {
       orgs = [];
     }

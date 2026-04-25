@@ -15,7 +15,17 @@ interface Key {
   preventDefault: () => void;
 }
 
-export type OverlayName = 'trust' | 'palette' | 'help' | 'modal' | 'perm' | 'wizard' | null;
+export type OverlayName =
+  | 'trust'
+  | 'palette'
+  | 'help'
+  | 'modal'
+  | 'perm'
+  | 'wizard'
+  | 'provider'
+  | 'model'
+  | 'setup'
+  | null;
 
 export interface TrustHandlers {
   onUp: () => void;
@@ -147,9 +157,22 @@ export function useGlobalKeys(
       return;
     }
 
+    // ── Provider / model picker overlays ──────────────────────────────────
+    // Keys handled by a standalone useKeyboard in App.tsx; just block globals.
+    if (overlay === 'provider' || overlay === 'model') {
+      return;
+    }
+
+    // ── First-run setup (qmd / api-key) ────────────────────────────────────
+    // Keys handled by App.tsx (standalone useKeyboard + textarea). Block all
+    // global shortcuts so Ctrl+P etc. cannot fire during setup.
+    if (overlay === 'setup') {
+      return;
+    }
+
     // ── Help overlay ───────────────────────────────────────────────────────
     if (overlay === 'help') {
-      if (key.name === 'escape' || (key.ctrl && key.name === 'h')) {
+      if (key.name === 'escape' || (key.ctrl && key.name === 'h') || key.name === 'f1') {
         help.onClose();
         key.preventDefault();
       }
@@ -211,7 +234,7 @@ export function useGlobalKeys(
     }
 
     // ── Global shortcuts ───────────────────────────────────────────────────
-    if (key.ctrl && key.name === 'h') {
+    if ((key.ctrl && key.name === 'h') || key.name === 'f1') {
       global.onToggleHelp();
       key.preventDefault();
       return;

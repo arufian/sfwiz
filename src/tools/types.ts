@@ -52,7 +52,7 @@ export type AskUserOption = zod.infer<typeof AskUserOption>;
 
 export const AskUserPayload = zod.object({
   question: zod.string().min(1),
-  header: zod.string().max(12),
+  header: zod.string().max(40),
   options: zod.array(AskUserOption).min(2).max(6),
   multiSelect: zod.boolean().default(false),
 });

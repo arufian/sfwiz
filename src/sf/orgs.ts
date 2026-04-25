@@ -45,7 +45,7 @@ export function parseSfOrgList(jsonOutput: string): OrgEntry[] {
 
 /** Shell out to `sf org list --json` and return parsed orgs. Throws if sf not found. */
 export function listOrgsCli(): OrgEntry[] {
-  const result = spawnSync('sf', ['org', 'list', '--json'], { encoding: 'utf8', timeout: 15_000 });
+  const result = spawnSync('sf', ['org', 'list', '--json'], { encoding: 'utf8', timeout: 15_000, env: { ...process.env } });
   if (result.error) throw result.error;
   return parseSfOrgList(result.stdout ?? '');
 }

@@ -816,6 +816,7 @@ export function App({
       setPaletteOpen(false);
       setPaletteQuery('');
       setPaletteSel(0);
+      inputRef.current?.setText('');
 
       // Static toggles
       if (label === 'Yolo Mode') {
