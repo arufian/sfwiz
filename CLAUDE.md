@@ -19,7 +19,7 @@ Phase 4 fully shipped. M1–M18 tagged (`m01`–`m18`, `v0.1.0`). Key deliverabl
 - **M10**: Scraper + season detection — `src/scraper/season.ts`, `src/scraper/html-to-md.ts`, `src/scraper/adapters/apex-ref.ts`
 - **M11**: Learn scheduler + Bun Worker — `src/learn/scheduler.ts`, `src/learn/worker.ts`
 - **M12**: DirTree chokidar watcher — `src/tui/layout/DirTree.tsx` (source-tracking integration)
-- **M13**: Persona subagents (`@anthropic-ai/claude-agent-sdk`) — `src/agent/subagents.ts` (6 `AgentDefinition`s), `src/agent/router.ts`. **In-tree, NOT yet invoked from `App.tsx` runtime — TODO next session.**
+- **M13**: Persona subagents (`@anthropic-ai/claude-agent-sdk`) — `src/agent/subagents.ts` (6 `AgentDefinition`s), `src/agent/router.ts`, `src/tools/interaction/route_persona.ts`. Wired into `App.tsx` runtime as the `route_persona` tool; orchestrator dispatches every persona via SDK `query()` (SDK-level tool isolation). PersonaView + ChatPanel divider blocks subscribe to `learnBus.subagent:*`.
 - **M14**: Persona gate + resources — `src/personas/gate.ts`, `src/personas/registry.ts`, `resources/personas/*.md` (6 personas: deploy-manager, designer, developer, org-admin, qa, reviewer), `resources/references/*.md` (10 guides)
 - **M15**: Command palette + fuzzy — `src/util/fuzzy.ts`, `src/dispatcher/registry.ts`, `src/tui/overlays/CommandPalette.tsx`
 - **M16**: Deferred (`.agent` viewer excluded from MVP per hackathon scope)

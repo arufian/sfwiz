@@ -1,12 +1,24 @@
-import type { PersonaName } from '~/agent/router';
 import type { AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
+import type { PersonaName } from '~/agent/router';
+import {
+  DEPLOY_MANAGER_AGENT,
+  DESIGNER_AGENT,
+  DEVELOPER_AGENT,
+  ORG_ADMIN_AGENT,
+  QA_AGENT,
+  REVIEWER_AGENT,
+} from '~/agent/subagents';
 
 export interface PersonaConfig {
   name: PersonaName;
   displayName: string;
   model: string;
-  executionMode: 'main-loop' | 'subagent';
-  agentDefinition?: AgentDefinition;
+  /**
+   * All 6 personas now run as isolated claude-agent-sdk subagents
+   * (SDK-level tool isolation, locked decision phase-4 M13).
+   */
+  executionMode: 'subagent';
+  agentDefinition: AgentDefinition;
   systemPromptFile?: string;
   maxToolRoundsPerTurn?: number;
 }
@@ -18,36 +30,34 @@ export const PERSONA_REGISTRY: Record<PersonaName, PersonaConfig> = {
     model: 'claude-sonnet-4-6',
     executionMode: 'subagent',
     systemPromptFile: 'resources/personas/org-admin.md',
-    agentDefinition: {
-      description: 'Manages Salesforce org settings, users, profiles, permissions, and sharing rules.',
-      prompt: 'You are a Salesforce org administrator. Always confirm before changes. Output structured JSON.',
-      model: 'claude-sonnet-4-6',
-      tools: ['Read', 'Bash'],
-    },
+    agentDefinition: ORG_ADMIN_AGENT,
   },
   designer: {
     name: 'designer',
     displayName: 'Designer',
     model: 'claude-opus-4-7',
-    executionMode: 'main-loop',
+    executionMode: 'subagent',
     systemPromptFile: 'resources/personas/designer.md',
     maxToolRoundsPerTurn: 15,
+    agentDefinition: DESIGNER_AGENT,
   },
   developer: {
     name: 'developer',
     displayName: 'Developer',
     model: 'claude-sonnet-4-6',
-    executionMode: 'main-loop',
+    executionMode: 'subagent',
     systemPromptFile: 'resources/personas/developer.md',
     maxToolRoundsPerTurn: 30,
+    agentDefinition: DEVELOPER_AGENT,
   },
   'deploy-manager': {
     name: 'deploy-manager',
     displayName: 'Deploy Manager',
     model: 'claude-sonnet-4-6',
-    executionMode: 'main-loop',
+    executionMode: 'subagent',
     systemPromptFile: 'resources/personas/deploy-manager.md',
     maxToolRoundsPerTurn: 20,
+    agentDefinition: DEPLOY_MANAGER_AGENT,
   },
   reviewer: {
     name: 'reviewer',
@@ -55,12 +65,7 @@ export const PERSONA_REGISTRY: Record<PersonaName, PersonaConfig> = {
     model: 'claude-opus-4-7',
     executionMode: 'subagent',
     systemPromptFile: 'resources/personas/reviewer.md',
-    agentDefinition: {
-      description: 'Reviews Salesforce code for quality, best practices, and security.',
-      prompt: 'You are a senior Salesforce architect reviewing code. Output structured JSON critique.',
-      model: 'claude-opus-4-7',
-      tools: ['Read', 'Glob', 'Grep'],
-    },
+    agentDefinition: REVIEWER_AGENT,
   },
   qa: {
     name: 'qa',
@@ -68,12 +73,7 @@ export const PERSONA_REGISTRY: Record<PersonaName, PersonaConfig> = {
     model: 'claude-sonnet-4-6',
     executionMode: 'subagent',
     systemPromptFile: 'resources/personas/qa.md',
-    agentDefinition: {
-      description: 'Runs Salesforce Apex tests and verifies code coverage.',
-      prompt: 'You are a QA engineer. Run tests via sf CLI and report structured JSON results.',
-      model: 'claude-sonnet-4-6',
-      tools: ['Read', 'Bash'],
-    },
+    agentDefinition: QA_AGENT,
   },
 };
 

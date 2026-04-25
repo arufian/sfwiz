@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { z } from 'zod';
 
 // Mock @anthropic-ai/claude-agent-sdk query() before importing subagents
@@ -17,10 +17,10 @@ async function* fakeAsyncQueryGenerator(): AsyncGenerator<unknown, void, unknown
 // We can't easily mock ESM imports in bun:test without module mocking,
 // so we test the supporting types and logic instead.
 
+import { QaOutputSchema, ReviewerOutputSchema } from '~/agent/router';
+import { QA_AGENT, REVIEWER_AGENT, getAuditLines } from '~/agent/subagents';
 import { checkPersonaGate } from '~/personas/gate';
-import { getPersona, PERSONA_REGISTRY } from '~/personas/registry';
-import { ReviewerOutputSchema, QaOutputSchema } from '~/agent/router';
-import { REVIEWER_AGENT, QA_AGENT, getAuditLines } from '~/agent/subagents';
+import { PERSONA_REGISTRY, getPersona } from '~/personas/registry';
 
 describe('persona gate', () => {
   test('reviewer blocked from Write', () => {
@@ -76,12 +76,21 @@ describe('persona registry', () => {
     expect(p.model).toBe('claude-sonnet-4-6');
   });
 
-  test('designer uses main-loop', () => {
-    expect(getPersona('designer').executionMode).toBe('main-loop');
+  test('designer uses subagent (SDK isolation)', () => {
+    expect(getPersona('designer').executionMode).toBe('subagent');
+    expect(getPersona('designer').agentDefinition.tools).toEqual(['Read', 'Glob', 'Grep']);
+    expect(getPersona('designer').agentDefinition.model).toBe('claude-opus-4-7');
   });
 
-  test('developer uses main-loop', () => {
-    expect(getPersona('developer').executionMode).toBe('main-loop');
+  test('developer uses subagent (SDK isolation)', () => {
+    expect(getPersona('developer').executionMode).toBe('subagent');
+    expect(getPersona('developer').agentDefinition.tools).toContain('Edit');
+    expect(getPersona('developer').agentDefinition.tools).toContain('Write');
+  });
+
+  test('deploy-manager uses subagent', () => {
+    expect(getPersona('deploy-manager').executionMode).toBe('subagent');
+    expect(getPersona('deploy-manager').agentDefinition.tools).toEqual(['Read', 'Bash']);
   });
 
   test('all 6 personas defined', () => {
@@ -111,7 +120,9 @@ describe('agent definitions (H1 subagent:* observability)', () => {
 describe('ReviewerOutputSchema validation', () => {
   test('valid reviewer output parses', () => {
     const valid = {
-      issues: [{ severity: 'error', file: 'AccountService.cls', line: 42, message: 'SOQL in loop' }],
+      issues: [
+        { severity: 'error', file: 'AccountService.cls', line: 42, message: 'SOQL in loop' },
+      ],
       summary: 'Governor limit risk found.',
       approved: false,
     };
@@ -124,7 +135,11 @@ describe('ReviewerOutputSchema validation', () => {
   });
 
   test('invalid severity rejected', () => {
-    const bad = { issues: [{ severity: 'critical', file: 'x.cls', message: 'x' }], summary: '', approved: false };
+    const bad = {
+      issues: [{ severity: 'critical', file: 'x.cls', message: 'x' }],
+      summary: '',
+      approved: false,
+    };
     expect(() => ReviewerOutputSchema.parse(bad)).toThrow();
   });
 });

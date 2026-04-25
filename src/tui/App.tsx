@@ -45,6 +45,7 @@ import { readFileTool } from '~/tools/fs/read_file';
 import { writeFileTool } from '~/tools/fs/write_file';
 // Tools
 import { askUserTool } from '~/tools/interaction/ask_user';
+import { routePersonaTool } from '~/tools/interaction/route_persona';
 import { sfQuery } from '~/tools/jsforce/sf_query';
 import { sfSobjectDescribe } from '~/tools/jsforce/sf_sobject_describe';
 import { sfApexRunAnonymous } from '~/tools/sf-cli/sf_apex_run_anonymous';
@@ -65,6 +66,7 @@ Always confirm destructive operations (deploys, permset assignments) with ask_us
 
 const ALL_TOOLS = [
   askUserTool,
+  routePersonaTool,
   readFileTool,
   listFilesTool,
   editFileTool,
@@ -280,9 +282,17 @@ export function App({
   // --- learnBus ---
   useEffect(() => {
     const onDone = () => setToast('knowledge embed complete');
+    const onPersonaSpawn = (e: { name: string }) => {
+      setBlocks((bs) => [
+        ...bs,
+        { id: crypto.randomUUID(), kind: 'divider', persona: e.name },
+      ]);
+    };
     learnBus.on('embed:done', onDone);
+    learnBus.on('subagent:spawn', onPersonaSpawn);
     return () => {
       learnBus.off('embed:done', onDone);
+      learnBus.off('subagent:spawn', onPersonaSpawn);
     };
   }, []);
 

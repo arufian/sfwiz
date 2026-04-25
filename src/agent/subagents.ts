@@ -1,7 +1,23 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentDefinition, SDKMessage, SDKSystemMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
-import { z } from 'zod';
+import type {
+  AgentDefinition,
+  SDKMessage,
+  SDKResultSuccess,
+  SDKSystemMessage,
+} from '@anthropic-ai/claude-agent-sdk';
+import type { z } from 'zod';
 import { learnBus } from '~/learn/bus';
+
+/** Query function type for dependency injection (test stubs override `query`). */
+type QueryFn = typeof query;
+let _queryImpl: QueryFn = query;
+
+/** Test-only: swap the SDK query() with a stub. Returns the previous impl. */
+export function __setQueryImpl(impl: QueryFn): QueryFn {
+  const prev = _queryImpl;
+  _queryImpl = impl;
+  return prev;
+}
 
 export interface SubagentRunOptions<TOut> {
   /** Agent name (must match a key in agentDefinitions) */
@@ -27,7 +43,8 @@ export interface SubagentResult<TOut> {
 
 /** Reviewer subagent: read-only, uses Opus 4.7 for voice-rich critique. */
 export const REVIEWER_AGENT: AgentDefinition = {
-  description: 'Reviews Salesforce Apex/LWC code for quality and SF platform best practices. Read-only.',
+  description:
+    'Reviews Salesforce Apex/LWC code for quality and SF platform best practices. Read-only.',
   prompt: `You are a senior Salesforce architect reviewing code changes.
 Your output MUST be valid JSON matching: { "issues": [{ "severity": "error"|"warning"|"info", "file": string, "line"?: number, "message": string }], "summary": string, "approved": boolean }
 Be thorough but concise. Focus on: governor limits, SOQL in loops, test coverage, security (CRUD/FLS), LWC anti-patterns.`,
@@ -42,7 +59,7 @@ export const ORG_ADMIN_AGENT: AgentDefinition = {
 Your output MUST be valid JSON: { "operation": string, "before": string, "after": string, "warnings": string[] }
 Always confirm via ask_user before making changes. Prefer sf_query to read current state first.`,
   model: 'claude-sonnet-4-6',
-  tools: ['Read', 'Bash'],
+  tools: ['Read', 'Glob', 'Grep', 'Bash'],
 };
 
 /** QA subagent: can run tests via Bash, uses Sonnet 4.6. */
@@ -55,15 +72,53 @@ Output MUST be valid JSON: { "passed": number, "failed": number, "coverage": num
   tools: ['Read', 'Bash'],
 };
 
+/** Designer subagent: drafts design from sObject layout. Read-only. Opus 4.7 voice-rich. */
+export const DESIGNER_AGENT: AgentDefinition = {
+  description:
+    'Drafts Salesforce solution designs from sObject layout, business requirements, and existing metadata. Read-only.',
+  prompt: `You are a Salesforce solution architect drafting design proposals.
+Output a structured plan as plain text: problem statement, proposed sObject changes, page-layout / record-type implications, automation choices (Flow vs Apex), permission/sharing impact, open risks.
+You may read files but never edit. Hand off to developer for implementation.`,
+  model: 'claude-opus-4-7',
+  tools: ['Read', 'Glob', 'Grep'],
+};
+
+/** Developer subagent: writes Apex/LWC code. Sonnet 4.6 for throughput. */
+export const DEVELOPER_AGENT: AgentDefinition = {
+  description:
+    'Writes and edits Apex classes, LWC components, tests, and metadata. Re-dispatches to reviewer when issues land.',
+  prompt: `You are a Salesforce developer.
+Implement the requested change with minimal scope. Match existing project style. Run/build via Bash only when explicitly required.
+Return a short summary: files touched, key decisions, and a one-line handoff for reviewer/qa.`,
+  model: 'claude-sonnet-4-6',
+  tools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'],
+};
+
+/** Deploy Manager subagent: dispatches sf project deploy after ask_user confirmation. Sonnet 4.6. */
+export const DEPLOY_MANAGER_AGENT: AgentDefinition = {
+  description:
+    'Plans and executes Salesforce deployments via the sf CLI after ask_user confirmation.',
+  prompt: `You are a Salesforce deployment manager.
+Always confirm the destructive operation with the user before invoking sf project deploy start.
+Return a short summary: target org, package paths, dry-run preview vs final outcome.`,
+  model: 'claude-sonnet-4-6',
+  tools: ['Read', 'Bash'],
+};
+
 const AGENT_DEFINITIONS: Record<string, AgentDefinition> = {
   'org-admin': ORG_ADMIN_AGENT,
+  designer: DESIGNER_AGENT,
+  developer: DEVELOPER_AGENT,
+  'deploy-manager': DEPLOY_MANAGER_AGENT,
   reviewer: REVIEWER_AGENT,
   qa: QA_AGENT,
 };
 
 /** Audit log for PostToolUse hook: each Edit/Write emits one line. */
 const auditLines: string[] = [];
-export function getAuditLines(): readonly string[] { return auditLines; }
+export function getAuditLines(): readonly string[] {
+  return auditLines;
+}
 
 /** Run a named subagent via claude-agent-sdk query(). Returns structured output. */
 export async function runSubagent<TOut = unknown>(
@@ -76,7 +131,7 @@ export async function runSubagent<TOut = unknown>(
     ? `${opts.prompt}\n\n<context>\n${JSON.stringify(opts.inputs, null, 2)}\n</context>`
     : opts.prompt;
 
-  const q = query({
+  const q = _queryImpl({
     prompt: userPrompt,
     options: {
       agent: opts.name,
@@ -125,7 +180,12 @@ export async function runSubagent<TOut = unknown>(
     }
   }
 
-  learnBus.emit('subagent:done', { kind: 'subagent:done', name: opts.name, numTurns, totalCostUsd });
+  learnBus.emit('subagent:done', {
+    kind: 'subagent:done',
+    name: opts.name,
+    numTurns,
+    totalCostUsd,
+  });
 
   if (rawResult === null) throw new Error(`Subagent "${opts.name}" returned no result`);
 
@@ -135,7 +195,9 @@ export async function runSubagent<TOut = unknown>(
       const jsonObj = JSON.parse(rawResult);
       parsed = opts.outputSchema.parse(jsonObj);
     } catch {
-      throw new Error(`Subagent "${opts.name}" result did not match schema: ${rawResult.slice(0, 200)}`);
+      throw new Error(
+        `Subagent "${opts.name}" result did not match schema: ${rawResult.slice(0, 200)}`,
+      );
     }
   } else {
     parsed = rawResult as TOut;
