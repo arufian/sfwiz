@@ -75,6 +75,211 @@ Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs 
 | —                | session hand-off            | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders) |
 | —                | session hand-off            | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified       |
 
+## Code map
+
+Read this before grepping. File paths are authoritative; terminology entries point straight at the implementation.
+
+### Entrypoints & build
+
+| Term                 | Path                                  | Notes                                                       |
+| -------------------- | ------------------------------------- | ----------------------------------------------------------- |
+| binary CLI           | `src/cli.ts`                          | argv parsing, `--first-run`, `--trust-this-workspace` flags |
+| TUI launch           | `src/tui/launch.tsx`                  | `render(<App />)` mount; opentui root                       |
+| dev runner           | `scripts/dev.ts`                      | watch + restart; QA flow                                    |
+| build                | `scripts/build.ts`                    | `bun build --compile` → `dist/sfwiz`                        |
+| coverage gate        | `scripts/check-coverage.ts`           | 80% lines / 70% branches                                    |
+| PoC reference        | `src/poc.tsx`                         | original opentui PoC; many components later split to `src/ui/*` and `src/tui/*` |
+
+### TUI shell (root container, layout, status)
+
+| Term              | Path                            | Notes                                                  |
+| ----------------- | ------------------------------- | ------------------------------------------------------ |
+| App root          | `src/tui/App.tsx`               | giant container — overlays, key handlers, agent wiring |
+| status bar (rich) | `src/tui/layout/StatusBar.tsx`  | active org, persona, mode, tokens                      |
+| status bar (simple) | `src/ui/panels/StatusBar.tsx` | minimal variant                                        |
+| dir tree (grouped)| `src/tui/layout/DirTree.tsx`    | left pane file tree                                    |
+| theme tokens      | `src/ui/theme.ts`               | `ACCENT`, `DIM`, `BORDER`, `OK`, `WARN`, `ERR`, `BG_VARIANTS`, `getBgColor()` |
+| event bus (TUI)   | `src/tui/events.ts`             | UI-side events                                         |
+| global keys       | `src/ui/hooks/useGlobalKeys.ts` | top-level keybindings                                  |
+
+### TUI overlays (modals over main view)
+
+| Term               | Path                                         | Trigger                                  |
+| ------------------ | -------------------------------------------- | ---------------------------------------- |
+| command palette    | `src/tui/overlays/CommandPalette.tsx`        | `Ctrl+P` or bare `/` (active)            |
+| command palette (PoC) | `src/ui/overlays/CommandPalette.tsx`      | older variant — not wired                |
+| help overlay       | `src/ui/overlays/HelpOverlay.tsx`            | `Ctrl+H`                                 |
+| trust workspace    | `src/ui/overlays/TrustWorkspacePrompt.tsx`   | first launch in cwd                      |
+| permission prompt  | `src/tui/overlays/PermissionPrompt.tsx`      | tool requires user approval              |
+| ask user modal     | `src/tui/overlays/AskUserModal.tsx` (+ `src/ui/overlays/AskUserModal.tsx`) | `ask_user` tool        |
+| API key setup      | `src/tui/overlays/ApiKeySetup.tsx`           | first run, no key in `~/.sfwiz/config.json` |
+| first-run wizard   | `src/tui/overlays/FirstRunWizard.tsx`        | `--first-run`                            |
+| model picker       | `src/tui/overlays/ModelPicker.tsx`           | `/model`                                 |
+| provider picker    | `src/tui/overlays/ProviderPicker.tsx`        | `/provider` (alias `/api-key`)           |
+
+### TUI setup screens (one-shot wizards)
+
+| Term         | Path                              |
+| ------------ | --------------------------------- |
+| setup chrome | `src/tui/setup/SetupChrome.tsx`   |
+| qmd install  | `src/tui/setup/QmdScreen.tsx`     |
+| embed screen | `src/tui/setup/EmbedScreen.tsx`   |
+
+### Chat/IO panels
+
+| Term            | Path                                  | Notes                                       |
+| --------------- | ------------------------------------- | ------------------------------------------- |
+| chat panel      | `src/ui/panels/ChatPanel.tsx`         | message list, tool blocks, expand/collapse  |
+| input line      | `src/ui/panels/InputLine.tsx`         | `<textarea>` w/ native cursor + accent border |
+| side panel      | `src/ui/panels/SidePanel.tsx`         | right pane host                             |
+| tree panel      | `src/ui/panels/TreePanel.tsx`         | left tree wrapper                           |
+| toast bar       | `src/ui/panels/ToastBar.tsx`          | transient notifications                     |
+| embed progress  | `src/ui/panels/EmbedProgressBar.tsx`  | knowledge bootstrap %                       |
+| markdown render | `src/ui/util/markdown.tsx`            | render assistant messages                   |
+
+### Side views (right pane content)
+
+| Term       | Path                              |
+| ---------- | --------------------------------- |
+| deploy     | `src/ui/side/DeployView.tsx`      |
+| knowledge  | `src/ui/side/KnowledgeView.tsx`   |
+| persona    | `src/ui/side/PersonaView.tsx`     |
+| SOQL       | `src/ui/side/SoqlView.tsx`        |
+| tests      | `src/ui/side/TestsView.tsx`       |
+| tokens     | `src/ui/side/TokensView.tsx`      |
+
+### Agent loop & LLM
+
+| Term                | Path                          | Notes                                                                     |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------- |
+| orchestrator loop   | `src/agent/loop.ts`           | `messages.stream()` + tool-use dispatch                                   |
+| persona router      | `src/agent/router.ts`         | dispatch to subagent                                                      |
+| persona subagents   | `src/agent/subagents.ts`      | 6 personas via `@anthropic-ai/claude-agent-sdk` `query()`                 |
+| token tracker       | `src/agent/token-tracker.ts`  | input/output/cache counts                                                 |
+| cache hints         | `src/agent/cache-hints.ts`    | `cache_control: ephemeral` placement                                      |
+| agent types         | `src/agent/types.ts`          |                                                                           |
+| Anthropic client    | `src/llm/client.ts`           | `getAnthropicClient()` — env fallback, config-file primary                |
+| model catalog       | `src/llm/models-catalog.ts`   | static model id list + display names                                      |
+| model list (live)   | `src/llm/list-models.ts`      | dynamic fetch                                                             |
+
+### Personas
+
+| Term               | Path                            | Notes                                              |
+| ------------------ | ------------------------------- | -------------------------------------------------- |
+| persona registry   | `src/personas/registry.ts`      | 6 personas: org-admin, designer, developer, deploy-manager, reviewer, qa |
+| persona gate       | `src/personas/gate.ts`          | tool-scope enforcement per persona                 |
+| persona types      | `src/personas/types.ts`         |                                                    |
+
+### Tools (callable by agent)
+
+| Term                  | Path                                                  | Notes                            |
+| --------------------- | ----------------------------------------------------- | -------------------------------- |
+| tool registry         | `src/tools/registry.ts`                               | name → handler map               |
+| tool index            | `src/tools/index.ts`                                  | exports all tools                |
+| tool gate             | `src/tools/gate.ts`                                   | permission check before exec     |
+| permission mode       | `src/tools/permission-mode.ts`                        | `ask` / `auto-edit` / `yolo`     |
+| tool types            | `src/tools/types.ts`                                  |                                  |
+| **fs tools**          | `src/tools/fs/`                                       | `read_file`, `write_file`, `edit_file`, `list_files`, `grep` |
+| **interaction**       | `src/tools/interaction/ask_user.ts` · `route_persona.ts` | first-class user prompt + persona dispatch |
+| **jsforce tools**     | `src/tools/jsforce/`                                  | `sf_query` (SOQL), `sf_sobject_describe` |
+| **knowledge tools**   | `src/tools/knowledge/qmd_query.ts` · `qmd_status.ts`  | qmd RAG queries                  |
+| **sf-cli tools**      | `src/tools/sf-cli/`                                   | `sf_deploy_start`, `sf_deploy_validate`, `sf_retrieve`, `sf_run_tests`, `sf_apex_run_anonymous`, `sf_assign_permset`, `sf_open_org`, `sf_scratch_create` |
+| **shell**             | `src/tools/shell/run_command.ts`                      | gated shell exec                 |
+
+### Dispatcher (slash commands)
+
+| Term              | Path                                           |
+| ----------------- | ---------------------------------------------- |
+| command registry  | `src/dispatcher/registry.ts`                   |
+| `/connect`        | `src/dispatcher/commands/connect.ts`           |
+| `/init`           | `src/dispatcher/commands/init.ts`              |
+| `/knowledge`      | `src/dispatcher/commands/knowledge.ts`         |
+| `/learn`          | `src/dispatcher/commands/learn.ts`             |
+| `/login`          | `src/dispatcher/commands/login.ts`             |
+| `/orgs`           | `src/dispatcher/commands/orgs.ts`              |
+| `/sessions`       | `src/dispatcher/commands/sessions.ts`          |
+
+### Config & state
+
+| Term                | Path                          | Notes                                            |
+| ------------------- | ----------------------------- | ------------------------------------------------ |
+| config schema (zod) | `src/config/schema.ts`        |                                                  |
+| config load         | `src/config/load.ts`          | reads `~/.sfwiz/config.json`                     |
+| config save         | `src/config/save.ts`          | chmod 600                                        |
+| permissions         | `src/config/permissions.ts`   | persisted allowlist                              |
+| trust workspace     | `src/config/trust.ts`         | `~/.sfwiz/trusted-workspaces.json` realpath-keyed |
+| first-run flag      | `src/config/first-run.ts`     |                                                  |
+| session types       | `src/session/types.ts`        |                                                  |
+
+### Salesforce integration
+
+| Term            | Path                          | Notes                                          |
+| --------------- | ----------------------------- | ---------------------------------------------- |
+| auth (sf CLI)   | `src/sf/auth.ts`              | passthrough of `sf` cred store                 |
+| connection      | `src/sf/connection.ts`        | jsforce connection builder                     |
+| login kick      | `src/sf/login-kick.ts`        | spawns `sf login web` if no orgs               |
+| orgs list       | `src/sf/orgs.ts`              | `sf org list` + display merge                  |
+| project detect  | `src/sf/project.ts`           | sfdx-project.json detection                    |
+| source tracking | `src/sf/source-tracking.ts`   |                                                |
+
+### Knowledge base (qmd RAG)
+
+| Term            | Path                              | Notes                                          |
+| --------------- | --------------------------------- | ---------------------------------------------- |
+| qmd install     | `src/knowledge/qmd-install.ts`    | auto-install on first run                      |
+| collections     | `src/knowledge/collections.ts`    | apex-ref, lwc-guide, sf-releases               |
+| detect          | `src/knowledge/detect.ts`         | resolve qmd binary                             |
+| embed           | `src/knowledge/embed.ts`          | bootstrap progress                             |
+
+### Continuous learning (worker)
+
+| Term            | Path                          | Notes                                          |
+| --------------- | ----------------------------- | ---------------------------------------------- |
+| worker entry    | `src/learn/worker.ts`         | Bun Worker                                     |
+| launcher        | `src/learn/launcher.ts`       | spawns worker                                  |
+| scheduler       | `src/learn/scheduler.ts`      | daily 03:00 + on-boot drift                    |
+| fetcher         | `src/learn/fetcher.ts`        | polite 1 rps, ETag/Last-Modified               |
+| docs fetcher    | `src/learn/docs-fetcher.ts`   |                                                |
+| sf-cli fetcher  | `src/learn/sf-cli-fetcher.ts` |                                                |
+| event bus       | `src/learn/bus.ts`            | progress events to TUI                         |
+| worker messages | `src/learn/worker-messages.ts`|                                                |
+
+### Scraper (knowledge ingest)
+
+| Term            | Path                                  | Notes                                |
+| --------------- | ------------------------------------- | ------------------------------------ |
+| html→md         | `src/scraper/html-to-md.ts`           | cheerio + turndown                   |
+| season          | `src/scraper/season.ts`               | release season detection             |
+| types           | `src/scraper/types.ts`                |                                      |
+| **adapters**    | `src/scraper/adapters/apex-ref.ts` · `lwc-guide.ts` · `sf-releases.ts` | per-source adapters |
+
+### Util / fixtures / types
+
+| Term         | Path                          | Notes                                |
+| ------------ | ----------------------------- | ------------------------------------ |
+| async helpers| `src/util/async.ts`           |                                      |
+| fuzzy match  | `src/util/fuzzy.ts`           | `fuzzyScore`, `FuzzyMatch`           |
+| UI types     | `src/types/ui.ts`             | `PaletteEntry` etc.                  |
+| fixtures     | `src/fixtures/`               | `chat`, `embed`, `misc`, `palette`, `tree` — demo data |
+
+### Terminology cheat sheet
+
+- **palette** — command palette modal (`Ctrl+P` / `/`)
+- **dispatcher** — slash-command runner; not the agent loop
+- **persona** — one of 6 SDK subagents (org-admin / designer / developer / deploy-manager / reviewer / qa)
+- **orchestrator** — top-level agent loop in `src/agent/loop.ts` that routes to personas
+- **gate** — permission/scope check; two flavors: `tools/gate.ts` (tool exec) and `personas/gate.ts` (persona tool-scope)
+- **trust workspace** — per-cwd opt-in stored in `~/.sfwiz/trusted-workspaces.json`
+- **permission mode** — `ask` / `auto-edit` / `yolo`; toggle via `/permissions` or `Shift+Tab`
+- **embed** — knowledge-base bootstrap (qmd vector index build)
+- **qmd** — `@tobilu/qmd`, the RAG store; `qmd_query` / `qmd_status` tools
+- **learn worker** — background scraper + scheduler (Bun Worker, opt-in)
+- **kick** — `src/sf/login-kick.ts` spawns `sf login web` when no orgs are connected
+- **side view** — right-pane content (deploy / knowledge / persona / SOQL / tests / tokens)
+- **route_persona** — orchestrator tool that dispatches a turn to a persona subagent
+- **ask_user** — first-class always-allowed tool; mandatory gate before destructive SF ops
+- **runtime config dir** — `~/.sfwiz/` (`config.json`, `trusted-workspaces.json`, `knowledge/`)
+
 ## Hackathon context
 
 - Deliverable: working binary + demo video (90–120 s).
