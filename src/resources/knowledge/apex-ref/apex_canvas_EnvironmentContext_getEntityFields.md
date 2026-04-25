@@ -1,0 +1,14 @@
+# getEntityFields()
+
+getEntityFields() Retrieves the list of object fields that are returned in the signed request Record object when the component appears on a Visualforce page that’s placed on an object. Signature public List<String> getEntityFields() Return Value Type: LIST<[String](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_string.htm#apex_methods_system_string "Contains methods for the String primitive data type.")> Usage When you use the <apex:canvasApp> component to display a canvas app on a Visualforce page, and that page is associated with an object (placed on the page layout, for example), you can specify fields to be returned from the related object. See the [Canvas Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.258.0.platform_connect.meta/platform_connect/ "HTML \(New Window\)") for more information on the Record object. Use getEntityFields() to retrieve the list of object fields that are returned in the signed request Record object. By default the list of fields includes ID. The list of fields can be configured by using the [Canvas.EnvironmentContext.addEntityField(fieldName)](atlas.en-us.258.0.apexref.meta/apexref/apex_canvas_EnvironmentContext_addEntityField.htm "Adds a field to the list of object fields that are returned in the signed request Record object when the component appears on a Visualforce page that’s placed on an object.") or [Canvas.EnvironmentContext.addEntityFields(fieldNames)](atlas.en-us.258.0.apexref.meta/apexref/apex_canvas_EnvironmentContext_addEntityFields.htm "Adds a set of fields to the list of object fields that are returned in the signed request Record object when the component appears on a Visualforce page that’s placed on an object.") methods. Example This example gets the current list of object fields and retrieves each item in the list, printing each field name to the debug log.
+[code] Canvas.EnvironmentContext env = renderContext.getEnvironmentContext();
+    
+    List<String> entityFields = env.getEntityFields();
+    for (String fieldVal : entityFields) {
+        System.debug('Environment Context entityField: ' + fieldVal);
+    }
+[/code]
+
+If the canvas app that’s using this lifecycle code was run from the detail page of an Account, the debug log output might look like:
+[code]Environment Context entityField: Id
+[/code]

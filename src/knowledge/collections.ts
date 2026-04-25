@@ -1,11 +1,11 @@
-import { mkdirSync, existsSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
-import { spawnSync } from 'child_process';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export const KNOWLEDGE_DIR = join(homedir(), '.sfwiz', 'knowledge');
 
-export type CollectionName = 'apex-ref' | 'lwc-guide' | 'sf-releases' | 'sf-cli-ref';
+export type CollectionName = 'apex-ref' | 'lwc-guide' | 'sf-releases' | 'sf-cli-ref' | 'jsforce';
 
 export interface CollectionSpec {
   name: CollectionName;
@@ -39,11 +39,21 @@ export const COLLECTIONS: CollectionSpec[] = [
     pattern: '**/*.md',
     description: 'Salesforce CLI (sf) unified command reference',
   },
+  {
+    name: 'jsforce',
+    dir: join(KNOWLEDGE_DIR, 'jsforce'),
+    pattern: '**/*.md',
+    description:
+      'JSforce v3 reference (Connection, Query, CRUD, Bulk2, Metadata, Tooling, Apex REST, SOSL)',
+  },
 ];
 
 /** List qmd collections registered on this machine. */
 export function listRegisteredCollections(): string[] {
-  const r = spawnSync('qmd', ['collection', 'list', '--json'], { encoding: 'utf8', timeout: 10_000 });
+  const r = spawnSync('qmd', ['collection', 'list', '--json'], {
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
   if (r.error || r.status !== 0) return [];
   try {
     const parsed = JSON.parse(r.stdout) as { name: string }[] | { collections: { name: string }[] };
@@ -51,7 +61,9 @@ export function listRegisteredCollections(): string[] {
     return (parsed.collections ?? []).map((c) => c.name);
   } catch {
     // Fallback: parse text output for collection names
-    return (r.stdout ?? '').split('\n').filter((l) => l.startsWith('apex-') || l.startsWith('lwc-') || l.startsWith('sf-'));
+    return (r.stdout ?? '')
+      .split('\n')
+      .filter((l) => l.startsWith('apex-') || l.startsWith('lwc-') || l.startsWith('sf-'));
   }
 }
 
@@ -62,10 +74,14 @@ export function bootstrapCollections(qmdBin: string): void {
   for (const col of COLLECTIONS) {
     mkdirSync(col.dir, { recursive: true });
 
-    const existing = spawnSync(qmdBin, ['collection', 'show', col.name], { encoding: 'utf8', timeout: 10_000 });
+    const existing = spawnSync(qmdBin, ['collection', 'show', col.name], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
     if (existing.status !== 0) {
       spawnSync(qmdBin, ['collection', 'add', col.name, col.dir, '--pattern', col.pattern], {
-        encoding: 'utf8', timeout: 10_000,
+        encoding: 'utf8',
+        timeout: 10_000,
       });
     }
   }

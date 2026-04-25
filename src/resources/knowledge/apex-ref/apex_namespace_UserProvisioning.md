@@ -1,0 +1,9 @@
+# UserProvisioning Namespace
+
+UserProvisioning Namespace The UserProvisioning namespace provides methods for monitoring outbound user provisioning requests. The following is the class in the UserProvisioning namespace.
+                                    * **[ConnectorTestUtil Class](atlas.en-us.258.0.apexref.meta/apexref/apex_class_UserProvisioning_ConnectorTestUtil.htm#apex_class_UserProvisioning_ConnectorTestUtil)**  
+Enables developers to write Apex test classes for connectors used by the connected app provisioning solution. This class simulates provisioning for the associated app.
+                                    * **[UserProvisioningLog Class](atlas.en-us.258.0.apexref.meta/apexref/apex_class_userprovisioning_userprovisioninglog.htm#apex_class_UserProvisioning_UserProvisioningLog)**  
+Provides methods for writing messages to monitor outbound user provisioning requests.
+                                    * **[UserProvisioningPlugin Class](atlas.en-us.258.0.apexref.meta/apexref/apex_class_UserProvisioning_UserProvisioningPlugin.htm#apex_class_UserProvisioning_UserProvisioningPlugin)**  
+The UserProvisioningPlugin base class implements Process.Plugin for programmatic customization of the user provisioning process for connected apps. 

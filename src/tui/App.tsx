@@ -380,6 +380,8 @@ export function App({
     async (qmdBin: string) => {
       try {
         bootstrapCollections(qmdBin);
+        const { seedKnowledgeFromBundle } = await import('~/knowledge/seed');
+        seedKnowledgeFromBundle();
       } catch {
         finishQmdPhase();
         return;
@@ -771,16 +773,24 @@ export function App({
       const current = blocksRef.current;
       const hasChat = current.some((b) => b.kind === 'user' || b.kind === 'assistant');
       if (hasChat) {
-        try { touchSession(sessionIdRef.current, cwd, current); } catch {}
+        try {
+          touchSession(sessionIdRef.current, cwd, current);
+        } catch {}
       }
     };
     process.on('exit', saveOnExit);
-    process.on('SIGINT', () => { saveOnExit(); process.exit(0); });
-    process.on('SIGTERM', () => { saveOnExit(); process.exit(0); });
+    process.on('SIGINT', () => {
+      saveOnExit();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      saveOnExit();
+      process.exit(0);
+    });
     return () => {
       process.off('exit', saveOnExit);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd]);
 
   // --- learnBus ---
@@ -1238,7 +1248,10 @@ export function App({
             }, 1000);
           };
           const stopLoad = () => {
-            if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+            if (tickHandle) {
+              clearInterval(tickHandle);
+              tickHandle = null;
+            }
             setBlocks((bs) => bs.filter((b) => b.id !== loadingId));
           };
           const phaseLabels: Record<string, string> = {
@@ -1277,11 +1290,28 @@ export function App({
         } else if (cmd.handler === 'open-org') {
           const targetOrg = currentOrgHandle?.alias ?? currentOrgHandle?.username;
           if (!targetOrg) {
-            setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: 'No org connected. Run /connect first.' }]);
+            setBlocks((bs) => [
+              ...bs,
+              {
+                id: crypto.randomUUID(),
+                kind: 'assistant',
+                text: 'No org connected. Run /connect first.',
+              },
+            ]);
           } else {
             const { spawnSync } = await import('child_process');
-            spawnSync('sf', ['org', 'open', '--target-org', targetOrg], { encoding: 'utf8', timeout: 30_000 });
-            setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: `Opened **${targetOrg}** in browser.` }]);
+            spawnSync('sf', ['org', 'open', '--target-org', targetOrg], {
+              encoding: 'utf8',
+              timeout: 30_000,
+            });
+            setBlocks((bs) => [
+              ...bs,
+              {
+                id: crypto.randomUUID(),
+                kind: 'assistant',
+                text: `Opened **${targetOrg}** in browser.`,
+              },
+            ]);
           }
         } else if (cmd.handler === 'learn') {
           const answer = await askUser({
@@ -1756,11 +1786,7 @@ export function App({
       {isSplash ? (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
           <SplashView tip={splashTip} />
-          <SidePanel
-            view={sideView}
-            cwd={cwd}
-            data={sidePanelData}
-          />
+          <SidePanel view={sideView} cwd={cwd} data={sidePanelData} />
         </box>
       ) : (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
@@ -1775,11 +1801,7 @@ export function App({
               )
             }
           />
-          <SidePanel
-            view={sideView}
-            cwd={cwd}
-            data={sidePanelData}
-          />
+          <SidePanel view={sideView} cwd={cwd} data={sidePanelData} />
         </box>
       )}
       {toast ? <ToastBar msg={toast} /> : null}

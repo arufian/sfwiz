@@ -1,15 +1,16 @@
+import { COLLECTIONS, bootstrapCollections } from '~/knowledge/collections';
+import { detectQmd, requireQmd } from '~/knowledge/detect';
+import { runEmbed } from '~/knowledge/embed';
+import { seedKnowledgeFromBundle } from '~/knowledge/seed';
+import { fetchCollectionDocs } from '~/learn/docs-fetcher';
+import { type SchedulerState, defaultSchedulerOptions, isRunDue } from '~/learn/scheduler';
+import { fetchSfCliRef } from '~/learn/sf-cli-fetcher';
 /**
  * Bun Worker for continuous-learning.
  * Spawned by src/tui/launch.tsx. Runs at daily 03:00 + boot drift.
  * Communicates with main thread via postMessage.
  */
 import type { WorkerCommand, WorkerEvent } from '~/learn/worker-messages';
-import { isRunDue, defaultSchedulerOptions, type SchedulerState } from '~/learn/scheduler';
-import { detectQmd, requireQmd } from '~/knowledge/detect';
-import { bootstrapCollections, COLLECTIONS } from '~/knowledge/collections';
-import { runEmbed } from '~/knowledge/embed';
-import { fetchSfCliRef } from '~/learn/sf-cli-fetcher';
-import { fetchCollectionDocs } from '~/learn/docs-fetcher';
 
 const opts = defaultSchedulerOptions({ bootDriftMs: 30_000, pollIntervalMs: 60_000 });
 const state: SchedulerState = { lastRunAt: null, status: 'idle' };
@@ -25,6 +26,19 @@ async function runLearning() {
     return;
   }
   bootstrapCollections(info.binPath);
+
+  // Seed any empty collection from the bundled corpus before scraping.
+  const seedResult = seedKnowledgeFromBundle();
+  for (const s of seedResult.seeded) {
+    send({ type: 'status', status: 'running', lastRunAt: state.lastRunAt });
+    self.postMessage({
+      type: 'embed:progress',
+      collection: s.collection,
+      done: s.files,
+      total: s.files,
+      currentItem: `seeded ${s.files} files from bundle`,
+    });
+  }
 
   state.status = 'running';
   send({ type: 'status', status: 'running', lastRunAt: state.lastRunAt });

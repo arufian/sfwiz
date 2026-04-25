@@ -1,0 +1,17 @@
+# FilterType Enum
+
+FilterType Enum Referenced by the type property on a DataSource.Filter. Usage Determines how to limit the returned data. Enum Values The following are the values of the DataSource.FilterType enum. Value | Description  
+---|---  
+AND_ | This compound filter type returns all rows that match all the subfilters.  
+CONTAINS | Simple comparative filter type.  
+ENDS_WITH | Simple comparative filter type.  
+EQUALS | Simple comparative filter type.  
+GREATER_THAN | Simple comparative filter type.  
+GREATER_THAN_OR_EQUAL_TO | Simple comparative filter type.  
+LESS_THAN | Simple comparative filter type.  
+LESS_THAN_OR_EQUAL_TO | Simple comparative filter type.  
+LIKE_ | Simple comparative filter type.  
+NOT_ | This compound filter type returns the rows that don’t match the subfilter.  
+NOT_EQUALS | Simple comparative filter type.  
+OR_ | This compound filter type returns all rows that match any of the subfilters.  
+STARTS_WITH | Simple comparative filter type.

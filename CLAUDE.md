@@ -71,6 +71,7 @@ Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs 
 | 4 Implementation | **DONE** (M1–M18)           | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                               |
 | 5 Test           | **IN PROGRESS** (bug fixes) | `.claude/plan/phase-5-test.md`           | bugs found post-M18 — fix until stable, then proceed to Phase 6                      |
 | 6 Video          | blocked (wait Phase 5)      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                                           |
+| 4 supplement     | **partial** (B done, A pending) | `.claude/plan/phase-4-supplement-jsforce-and-knowledge.md` | Stream B M19–M25 done (apex-ref + jsforce shipped offline; 3 SF collections deferred to runtime fetch). Stream A M26–M32 (jsforce expansion) pending after Phase 5 bug-fix. |
 | —                | —                           | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                                 |
 | —                | session hand-off            | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders) |
 | —                | session hand-off            | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified       |

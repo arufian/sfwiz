@@ -1,0 +1,16 @@
+# LayoutColumn Class
+
+LayoutColumn Class Represents the items in a column within a layout section. Namespace [Metadata](atlas.en-us.258.0.apexref.meta/apexref/apex_namespace_Metadata.htm "The Metadata namespace provides classes and methods for working with custom metadata in Salesforce") Usage Use this class when accessing [Metadata.Layout](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_Layout.htm#apex_class_Metadata_Layout "Represents the metadata associated with a page layout.") metadata components. For more information, see “LayoutColumn” in the [Metadata API Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.258.0.api_meta.meta/api_meta/meta_intro.htm).
+            * **[LayoutColumn Properties](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutColumn.htm#apex_Metadata_LayoutColumn_properties)**  
+
+            * **[LayoutColumn Methods](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutColumn.htm#apex_Metadata_LayoutColumn_methods)**  
+
+LayoutColumn Properties The following are properties for LayoutColumn.
+            * **[layoutItems](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutColumn.htm#apex_Metadata_LayoutColumn_layoutItems)**  
+The individual items within a column (ordered from top to bottom).
+            * **[reserved](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutColumn.htm#apex_Metadata_LayoutColumn_reserved)**  
+This field is reserved for Salesforce.
+layoutItems The individual items within a column (ordered from top to bottom). Signature public List<Metadata.LayoutItem> layoutItems {get; set;} Property Value Type: [List](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_list.htm#apex_methods_system_list "Contains methods for the List collection type.")<[Metadata.LayoutItem](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutItem.htm#apex_class_Metadata_LayoutItem "Represents the valid values that define a layout item.")> reserved This field is reserved for Salesforce. Signature public String reserved {get; set;} Property Value Type: [String](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_string.htm#apex_methods_system_string "Contains methods for the String primitive data type.") LayoutColumn Methods The following are methods for LayoutColumn.
+            * **[clone()](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_LayoutColumn.htm#apex_Metadata_LayoutColumn_clone)**  
+Makes a duplicate copy of the Metadata.LayoutColumn.
+clone() Makes a duplicate copy of the Metadata.LayoutColumn. Signature public Object clone() Return Value Type: Object

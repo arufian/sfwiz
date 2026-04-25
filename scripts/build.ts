@@ -6,8 +6,8 @@
  *   bun scripts/build.ts --bundle → dist/cli.js (JS bundle, for debugging)
  */
 
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { $ } from 'bun';
-import { existsSync, mkdirSync, statSync } from 'fs';
 
 const args = process.argv.slice(2);
 const bundle = args.includes('--bundle');
@@ -15,6 +15,10 @@ const all = args.includes('--all');
 const outdir = 'dist';
 
 if (!existsSync(outdir)) mkdirSync(outdir);
+
+// Regenerate the inline knowledge bundle so the compiled binary contains
+// the latest pre-bundled markdown corpus (apex-ref, jsforce).
+await $`bun scripts/gen-knowledge-bundle.ts`;
 
 const TARGETS = [
   { target: 'bun-darwin-arm64', suffix: 'darwin-arm64' },

@@ -1,0 +1,8 @@
+# ReportCurrency Class
+
+ReportCurrency Class Contains information about a currency value, including the amount and currency code. Namespace [Reports](atlas.en-us.258.0.apexref.meta/apexref/apex_namespace_Reports.htm "The Reports namespace provides classes for accessing the same data as is available in the Salesforce Reports and Dashboards REST API.") ReportCurrency Methods The following are methods for ReportCurrency. All are instance methods.
+                  * **[getAmount()](atlas.en-us.258.0.apexref.meta/apexref/apex_class_reports_reportcurrency.htm#apex_Reports_ReportCurrency_getAmount)**  
+Returns the amount of the currency value.
+                  * **[getCurrencyCode()](atlas.en-us.258.0.apexref.meta/apexref/apex_class_reports_reportcurrency.htm#apex_Reports_ReportCurrency_getCurrencyCode)**  
+Returns the report currency code, such as USD, EUR, or GBP, for an organization that has multicurrency enabled. The value is null if the organization does not have multicurrency enabled.
+getAmount() Returns the amount of the currency value. Syntax public Decimal getAmount() Return Value Type: [Decimal](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_decimal.htm#apex_methods_system_decimal "Contains methods for the Decimal primitive data type.") getCurrencyCode() Returns the report currency code, such as USD, EUR, or GBP, for an organization that has multicurrency enabled. The value is null if the organization does not have multicurrency enabled. Syntax public String getCurrencyCode() Return Value Type: [String](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_string.htm#apex_methods_system_string "Contains methods for the String primitive data type.")

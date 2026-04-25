@@ -1,0 +1,14 @@
+# RelatedContent Class
+
+RelatedContent Class Represents the Mobile Cards section of the page layout. Namespace [Metadata](atlas.en-us.258.0.apexref.meta/apexref/apex_namespace_Metadata.htm "The Metadata namespace provides classes and methods for working with custom metadata in Salesforce") Usage Use this class when accessing [Metadata.Layout](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_Layout.htm#apex_class_Metadata_Layout "Represents the metadata associated with a page layout.") metadata components. For more information, see “RelatedContent” in the [Metadata API Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.258.0.api_meta.meta/api_meta/meta_intro.htm).
+            * **[RelatedContent Properties](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_RelatedContent.htm#apex_Metadata_RelatedContent_properties)**  
+
+            * **[RelatedContent Methods](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_RelatedContent.htm#apex_Metadata_RelatedContent_methods)**  
+
+RelatedContent Properties The following are properties for RelatedContent.
+            * **[relatedContentItems](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_RelatedContent.htm#apex_Metadata_RelatedContent_relatedContentItems)**  
+A list of layout items in the Mobile Cards section of the page layout.
+relatedContentItems A list of layout items in the Mobile Cards section of the page layout. Signature public List<Metadata.RelatedContentItem> relatedContentItems {get; set;} Property Value Type: [List](atlas.en-us.258.0.apexref.meta/apexref/apex_methods_system_list.htm#apex_methods_system_list "Contains methods for the List collection type.")<[Metadata.RelatedContentItem](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_RelatedContentItem.htm#apex_class_Metadata_RelatedContentItem "Represents an individual item in the RelatedContent list.")> RelatedContent Methods The following are methods for RelatedContent.
+            * **[clone()](atlas.en-us.258.0.apexref.meta/apexref/apex_class_Metadata_RelatedContent.htm#apex_Metadata_RelatedContent_clone)**  
+Makes a duplicate copy of the Metadata.RelatedContent.
+clone() Makes a duplicate copy of the Metadata.RelatedContent. Signature public Object clone() Return Value Type: Object

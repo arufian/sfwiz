@@ -1,0 +1,7 @@
+# LoginDiscoveryMethod Enum
+
+LoginDiscoveryMethod Enum Contains methods used to verify the user’s identity when the My Domain login process uses Login Discovery. Usage Specifies the verification method used to authenticate internal users when My Domain is set up for Login Discovery.  Enum Values Auth.LoginDiscoveryMethod enum has the following values.  Value | Description  
+---|---  
+LIGHTNING_LOGIN | Verify identity by Lightning Login, which lets internal users log in with Salesforce Authenticator.  
+PASSWORD | Verify identity by entering a password.  
+| 
