@@ -12,9 +12,15 @@ export interface LoginKickOptions {
  * Returns abort function.
  */
 export function kickSfLoginWeb(opts: LoginKickOptions = {}): () => void {
-  const proc = spawn('sf', ['login', 'web', '--json'], {
+  const proc = spawn('sf', ['login', 'web'], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env },
   });
+
+  let done = false;
+  const finish = (code: number | null) => {
+    if (!done) { done = true; opts.onDone?.(code); }
+  };
 
   const handleData = (chunk: Buffer) => {
     const lines = chunk.toString('utf8').split('\n').filter(Boolean);
@@ -23,7 +29,8 @@ export function kickSfLoginWeb(opts: LoginKickOptions = {}): () => void {
 
   proc.stdout.on('data', handleData);
   proc.stderr.on('data', handleData);
-  proc.on('close', (code) => opts.onDone?.(code));
+  proc.on('error', () => finish(null));
+  proc.on('close', finish);
 
   return () => proc.kill('SIGTERM');
 }

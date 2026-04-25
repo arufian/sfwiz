@@ -565,6 +565,12 @@ export function App({
     };
   }, [apiKeyReady, cwd, askUser, mode, promptPermission, currentModelId]);
 
+  // Populate sidebar org on launch (shows existing auth without requiring /orgs).
+  useEffect(() => {
+    if (!apiKeyReady || setupPhase !== 'ready') return;
+    void refreshOrg();
+  }, [apiKeyReady, setupPhase, refreshOrg]);
+
   // --- learnBus ---
   useEffect(() => {
     const onDone = () => setToast('knowledge embed complete');
