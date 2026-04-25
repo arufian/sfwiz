@@ -1,31 +1,85 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { spawnSync } from 'child_process';
-import { listOrgs } from '~/sf/auth';
 import { kickSfLoginWeb } from '~/sf/login-kick';
 import type { ToolContext } from '~/tools/types';
 
+interface SfOrg {
+  alias?: string;
+  username: string;
+  instanceUrl: string;
+  connectedStatus?: string;
+  isDefaultUsername?: boolean;
+}
+
+interface SfOrgListResult {
+  nonScratchOrgs?: SfOrg[];
+  scratchOrgs?: SfOrg[];
+}
+
+/** Run `sf org list --json` and return all orgs (scratch + non-scratch). */
+function sfOrgList(): SfOrg[] {
+  const r = spawnSync('sf', ['org', 'list', '--json'], {
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  if (r.error || !r.stdout) return [];
+  try {
+    const parsed = JSON.parse(r.stdout) as { result?: SfOrgListResult };
+    const result = parsed.result ?? {};
+    return [
+      ...(result.nonScratchOrgs ?? []),
+      ...(result.scratchOrgs ?? []),
+    ];
+  } catch {
+    return [];
+  }
+}
+
 /**
- * /connect — list authenticated SF orgs and let user select one to activate,
- * or add a new org via `sf login web`.
- * After selecting an org, sets it as the default and updates sfdx-project.json.
+ * Run `sf org display --target-org <alias> --json` and extract the instance URL.
+ * Returns null if the command fails.
+ */
+function sfOrgDisplay(target: string): string | null {
+  const r = spawnSync('sf', ['org', 'display', '--target-org', target, '--json'], {
+    encoding: 'utf8',
+    timeout: 30_000,
+  });
+  if (r.error || !r.stdout) return null;
+  try {
+    const parsed = JSON.parse(r.stdout) as { result?: { instanceUrl?: string } };
+    return parsed.result?.instanceUrl ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * /connect — list authenticated SF orgs via `sf org list`, show selectable
+ * modal, then set selected org as default and write sfdx-project.json.
  */
 export async function connectCommand(
   ctx: ToolContext,
   cwd: string,
 ): Promise<{ connected: boolean; alias: string | null }> {
-  const orgs = await listOrgs().catch(() => [] as Awaited<ReturnType<typeof listOrgs>>);
+  // Run `sf org list` and wait for output
+  const orgs = sfOrgList();
 
-  const options: { label: string; description: string }[] = orgs.map((o) => ({
-    label: o.alias ?? o.username,
-    description: `${o.username} · ${o.instanceUrl}${o.isDefault ? ' [current default]' : ''}`,
-  }));
-  options.push({ label: 'Add new org', description: 'Open browser to log in with sf login web' });
-  options.push({ label: 'Cancel', description: 'Keep current selection' });
+  const options: { label: string; description: string }[] = orgs.map((o) => {
+    const label = o.alias ?? o.username;
+    const status = o.connectedStatus === 'Connected' ? '✓' : o.connectedStatus ?? '?';
+    const isDefault = o.isDefaultUsername ? ' [default]' : '';
+    return {
+      label,
+      description: `${o.username}${isDefault} · ${status}`,
+    };
+  });
+  options.push({ label: 'Add new org', description: 'Open browser — sf login web' });
+  options.push({ label: 'Cancel', description: '' });
 
   const answer = await ctx.askUser({
     question: orgs.length
-      ? `${orgs.length} authenticated org${orgs.length === 1 ? '' : 's'} found. Which one to use?`
+      ? `${orgs.length} org${orgs.length === 1 ? '' : 's'} found — select one to connect`
       : 'No orgs authenticated. Add one now?',
     header: '/connect',
     options,
@@ -39,41 +93,51 @@ export async function connectCommand(
 
   if (picked === 'Add new org') {
     await new Promise<void>((resolve) => {
-      let resolved = false;
+      let done = false;
       const abort = kickSfLoginWeb({
         onLine: (line) => {
-          if (line.includes('Successfully authorized')) {
-            if (!resolved) { resolved = true; resolve(); abort(); }
+          if (line.includes('Successfully authorized') && !done) {
+            done = true;
+            resolve();
+            abort();
           }
         },
-        onDone: () => { if (!resolved) { resolved = true; resolve(); } },
+        onDone: () => { if (!done) { done = true; resolve(); } },
       });
     });
     return { connected: true, alias: null };
   }
 
-  // User picked an existing org — set as default + update sfdx-project.json
-  const org = orgs.find((o) => (o.alias ?? o.username) === picked);
-  if (!org) return { connected: false, alias: null };
+  // Get the org's domain via `sf org display`
+  const instanceUrl = sfOrgDisplay(picked);
+  if (!instanceUrl) {
+    return { connected: false, alias: null };
+  }
 
-  // Set as default org via sf config set
-  spawnSync('sf', ['config', 'set', 'target-org', org.alias ?? org.username], {
+  // Extract domain from instanceUrl (e.g. https://foo.my.salesforce.com → foo.my.salesforce.com)
+  let domain: string;
+  try {
+    domain = new URL(instanceUrl).hostname;
+  } catch {
+    domain = instanceUrl;
+  }
+
+  // Write / update sfdx-project.json in cwd
+  const projectFile = join(cwd, 'sfdx-project.json');
+  let project: Record<string, unknown> = {};
+  if (existsSync(projectFile)) {
+    try {
+      project = JSON.parse(readFileSync(projectFile, 'utf8')) as Record<string, unknown>;
+    } catch {}
+  }
+  project.sfdcLoginUrl = `https://${domain}`;
+  writeFileSync(projectFile, JSON.stringify(project, null, 2) + '\n', 'utf8');
+
+  // Also set as default org in sf CLI config
+  spawnSync('sf', ['config', 'set', 'target-org', picked], {
     encoding: 'utf8',
     cwd,
   });
 
-  // Update sfdx-project.json if it exists
-  const projectFile = join(cwd, 'sfdx-project.json');
-  if (existsSync(projectFile)) {
-    try {
-      const raw = readFileSync(projectFile, 'utf8');
-      const project = JSON.parse(raw) as Record<string, unknown>;
-      project.sfdcLoginUrl = org.instanceUrl;
-      writeFileSync(projectFile, JSON.stringify(project, null, 2), 'utf8');
-    } catch {
-      // Non-fatal — proceed even if update fails
-    }
-  }
-
-  return { connected: true, alias: org.alias ?? org.username };
+  return { connected: true, alias: picked };
 }
