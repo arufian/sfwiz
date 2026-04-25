@@ -2,31 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Confirmation & Clarification
+
+- Use the AskUserQuestion tool for confirmations and choices, never plain text prompts.
+- Do not mark phases/milestones as 'done' unless the actual implementation (not just the spec/doc) is complete and verified.
+  Add under a new '## Privacy & Personal Info' section, or merge into existing writing/docs guidance.
+
+## Privacy & Personal Info
+
+- Never include personal directory paths, plugin names, account handles, or local machine identifiers in articles, docs, or commits.
+- Before publishing any user-facing markdown, scan for leaked personal info and flag it for confirmation.
+  Add under '## Debugging' or create a new '## Process Hygiene' section.
+
+## Process Hygiene
+
+- After making fixes that affect a running TUI/dev server, remind the user to restart the process before retesting.
+- Avoid blocking calls (e.g., spawnSync) inside render/animation loops — use async equivalents.
+  Add under a '## Claude Code Configuration' section.
+
+## Settings Schema
+
+- When editing `.claude/settings.json`, place `defaultMode` inside the `permissions` object, not at the top level. Valid values are documented modes (e.g., 'acceptEdits'), not 'acceptAll'.
+
 ## Repo state
 
 **2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. Binary: `dist/sfwiz` (65.6 MB). Bug-fix pass in progress — not user-ready.**
 
-Phase 4 fully shipped. Bug-fixing session started 2026-04-25 (post-M18 QA found multiple issues). Key deliverables by milestone:
-- **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tests/sanity.test.ts`, H4 smoke test
-- **M2**: Zod schemas — `src/config/schema.ts`, `src/personas/types.ts`, `src/session/types.ts`, `src/scraper/types.ts`, `src/tools/types.ts`
-- **M3**: AgentLoop — `src/llm/client.ts`, `src/agent/cache-hints.ts` (4-breakpoint), `src/agent/loop.ts` (streaming tool-use), H2 mock-fetch SSE guard
-- **M4**: Tool registry + permission gates — `src/tools/registry.ts`, `src/tools/gate.ts`, `src/tools/permission-mode.ts`
-- **M5**: Core tools — `src/tools/interaction/ask_user.ts`, `src/tools/fs/`, `src/tools/shell/run_command.ts`
-- **M6**: Config/trust — `src/config/trust.ts`, `src/config/load.ts`, `src/config/save.ts`, `src/config/first-run.ts`, `src/tui/events.ts`
-- **M7**: SF auth — `src/sf/auth.ts` (`@salesforce/core` passthrough), `src/sf/orgs.ts`, `src/sf/login-kick.ts`, `/orgs` command
-- **M8**: jsforce connection + SF tools — `src/sf/connection.ts`, `src/sf/project.ts`, `src/sf/source-tracking.ts`, `src/tools/sf-cli/sf_deploy_start.ts`, `src/tools/sf-cli/sf_apex_run_anonymous.ts`, `src/tools/jsforce/sf_query.ts`, `src/tools/jsforce/sf_sobject_describe.ts`
-- **M9**: Knowledge base — `src/knowledge/detect.ts`, `src/knowledge/collections.ts`, `src/knowledge/embed.ts`, `src/learn/bus.ts`, `src/tui/layout/StatusBar.tsx`
-- **M10**: Scraper + season detection — `src/scraper/season.ts`, `src/scraper/html-to-md.ts`, `src/scraper/adapters/apex-ref.ts`
-- **M11**: Learn scheduler + Bun Worker — `src/learn/scheduler.ts`, `src/learn/worker.ts`
-- **M12**: DirTree chokidar watcher — `src/tui/layout/DirTree.tsx` (source-tracking integration)
-- **M13**: Persona subagents (`@anthropic-ai/claude-agent-sdk`) — `src/agent/subagents.ts` (6 `AgentDefinition`s), `src/agent/router.ts`, `src/tools/interaction/route_persona.ts`. Wired into `App.tsx` runtime as the `route_persona` tool; orchestrator dispatches every persona via SDK `query()` (SDK-level tool isolation). PersonaView + ChatPanel divider blocks subscribe to `learnBus.subagent:*`.
-- **M14**: Persona gate + resources — `src/personas/gate.ts`, `src/personas/registry.ts`, `resources/personas/*.md` (6 personas: deploy-manager, designer, developer, org-admin, qa, reviewer), `resources/references/*.md` (10 guides)
-- **M15**: Command palette + fuzzy — `src/util/fuzzy.ts`, `src/dispatcher/registry.ts`, `src/tui/overlays/CommandPalette.tsx`
-- **M16**: Deferred (`.agent` viewer excluded from MVP per hackathon scope)
-- **M17**: Polish — `src/util/async.ts` (retry/throttle), cache-hints verification tests (the unused `src/tui/views/*` shadow-tree was removed; live side panels live under `src/ui/side/*`)
-- **M18**: Packaging — `scripts/build.ts` (multi-platform `--all`), `README.md`, `.env.example`, `dist/sfwiz` binary verified
-
-Prior sessions: 2026-04-24 (PoC polish + 5 UX demos + poc.tsx split), 2026-04-25 (M1–M18 implementation).
+M1–M18 complete — see `.claude/plan/phase-4-implementation.md` for per-milestone deliverables.
 
 ## RULES
 
@@ -50,17 +52,6 @@ Pre-flip checklist:
   - (b) Copy the key plans to `docs/submission/*.md` (tracked): `architecture.md`, `locked-decisions.md`. Preferred — lets you curate for judges without dumping all planning noise.
 - [ ] **Incognito verify post-flip**: open the repo URL in a private-browser window immediately after flipping. Confirm public render.
 
-## Goal
-
-Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for the Salesforce ecosystem — to a hackathon with a demo video. Covers:
-
-- Development (Apex / LWC / SOQL / metadata / deploy)
-- Admin (org settings, users, permissions, sharing, 42-type Settings registry)
-- Scratch-org + existing-org deploy lifecycle
-- Anthropic-only LLM (v1) — `@anthropic-ai/sdk` orchestrator (streaming tool-use) + `@anthropic-ai/claude-agent-sdk` for the 6 persona subagents; multi-provider deferred to v2
-- Persona orchestration (1 orchestrator → 6 subagents): org-admin · designer · developer · deploy-manager · reviewer · qa
-- Knowledge base + continuous learning via qmd (Apex ref, LWC guide, release notes)
-
 ## Current phase
 
 **Bug-fix pass in progress. Phases 1–4 implementation complete, but bugs found during QA — fixing before recording demo.**
@@ -71,18 +62,18 @@ Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs 
 
 ## Phase map
 
-| Phase            | Status                     | File                                     | When to open                                                            |
-| ---------------- | -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
-| —                | —                          | `.claude/plan/README.md`                 | first, every session — index + locked decisions table                   |
-| 1 Research       | done                       | `.claude/plan/phase-1-research.md`       | read once to absorb prior-art + 18 locked decisions                     |
-| 2 Planning       | done                       | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session            |
-| 3 PoC (UI only)  | done (opentui)             | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1   |
-| 4 Implementation | **DONE** (M1–M18)          | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                  |
-| 5 Test           | **IN PROGRESS** (bug fixes)| `.claude/plan/phase-5-test.md`           | bugs found post-M18 — fix until stable, then proceed to Phase 6         |
-| 6 Video          | blocked (wait Phase 5)     | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
-| —                | —                          | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                    |
-| —                | session hand-off           | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders)                       |
-| —                | session hand-off           | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified                              |
+| Phase            | Status                      | File                                     | When to open                                                                         |
+| ---------------- | --------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| —                | —                           | `.claude/plan/README.md`                 | first, every session — index + locked decisions table                                |
+| 1 Research       | done                        | `.claude/plan/phase-1-research.md`       | read once to absorb prior-art + 18 locked decisions                                  |
+| 2 Planning       | done                        | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session                         |
+| 3 PoC (UI only)  | done (opentui)              | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1                |
+| 4 Implementation | **DONE** (M1–M18)           | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                               |
+| 5 Test           | **IN PROGRESS** (bug fixes) | `.claude/plan/phase-5-test.md`           | bugs found post-M18 — fix until stable, then proceed to Phase 6                      |
+| 6 Video          | blocked (wait Phase 5)      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                                           |
+| —                | —                           | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                                 |
+| —                | session hand-off            | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders) |
+| —                | session hand-off            | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified       |
 
 ## Hackathon context
 
@@ -120,8 +111,6 @@ git commit -m "phase-N: <short description>"
 git push origin main
 ```
 
-For Phase 4 (18 milestones), commit + push after **each milestone** (`m01` through `m18`). Not a single phase-4 commit.
-
 Rules:
 
 - **Never commit with unresolved local paths.** Grep audit `rg -n "/Users/|<author-username>|<author-email-prefix>@"` on staged diff must return 0 hits.
@@ -131,7 +120,7 @@ Rules:
 ## Locked architecture decisions (single-line reference — full rationale in phase-1 §3)
 
 - **Runtime**: Bun 1.1+ · TypeScript 5.6 strict · Biome (format+lint) · `bun test`
-- **TUI**: `@opentui/react` + `@opentui/core` 0.1.102+ · React 19 · `jsxImportSource: "@opentui/react"` · native `<scrollbox>` + mouse wheel + kitty keyboard · **switched from Ink 5 during PoC** (see `progress.md` §"Framework decision is now STALE"); `.claude/plan/phase-1-research.md` still lists Ink — reconcile in M1
+- **TUI**: `@opentui/react` + `@opentui/core` 0.1.102+ · React 19 · `jsxImportSource: "@opentui/react"` · native `<scrollbox>` + mouse wheel + kitty keyboard
 - **LLM (orchestrator)**: `@anthropic-ai/sdk` directly · `messages.stream()` with manual tool-use loop (check `stop_reason === 'tool_use'`, dispatch tool, inject `tool_result`, continue) · prompt caching via `betas: ['prompt-caching-2024-07-31']` + `cache_control: { type: 'ephemeral' }` on stable system + tool-defs blocks · v1 = Anthropic only; multi-provider (OpenAI/Google/Groq) deferred to v2
 - **LLM (persona subagents)**: `@anthropic-ai/claude-agent-sdk` ≥ 0.2.111 · `query()` async generator with `AgentDefinition` · 6 persona subagents (org-admin / designer / developer / deploy-manager / reviewer / qa) with strict tool-scope · session capture via `system/init.session_id` for `resume` · Opus 4.7 (`claude-opus-4-7`) requires SDK ≥ 0.2.111
 - **Salesforce API**: `jsforce` 3 (REST/SOQL/Tooling/Metadata/Bulk)
@@ -193,11 +182,10 @@ For multi-step tasks, state a brief plan with verify steps before coding.
 
 1. **No mutation** of the author's prior local prototype repos (listed in `.claude/plan/internal-references.md`). Reuse via copy/port only.
 2. **sf CLI owns lifecycle · jsforce owns runtime API.** Do not re-implement what `sf` already does (scratch, deploy, test, retrieve).
-3. **Tool-use integration test FIRST** in M3 (`tests/agent/loop.integration.test.ts`). Guards the tool-schema-forwarding bug observed in a prior prototype (LLM SDK silently dropped the `tools` array on the outgoing request).
-4. **Reviewer persona read-only.** Tool-scope strictly `ask_user`, `read_file`, `list_files`, `grep`, `sf_query`, `sf_sobject_describe`, `qmd_query`.
-5. **Streaming mandatory from M3.** `anthropic.messages.stream()` for the orchestrator; `query()` async generator for persona subagents. Never the non-streaming `messages.create()` for interactive turns.
-6. **TUI-first API key flow**: there is no `.env` quickstart and no expected env var. On first launch sfwiz prompts for the Anthropic API key inside the TUI and persists it to `~/.sfwiz/config.json` (chmod 600). Rotation/provider switch happens via `/provider` (alias `/api-key`). `process.env.ANTHROPIC_API_KEY` is still honored as a dev-only fallback inside `getAnthropicClient()` but must not appear in user-facing docs.
-7. **Every Zod schema gets a malformed-input test.** Phase-5 §2.
+3. **Reviewer persona read-only.** Tool-scope strictly `ask_user`, `read_file`, `list_files`, `grep`, `sf_query`, `sf_sobject_describe`, `qmd_query`.
+4. **Streaming mandatory.** `anthropic.messages.stream()` for the orchestrator; `query()` async generator for persona subagents. Never the non-streaming `messages.create()` for interactive turns.
+5. **TUI-first API key flow**: there is no `.env` quickstart and no expected env var. On first launch sfwiz prompts for the Anthropic API key inside the TUI and persists it to `~/.sfwiz/config.json` (chmod 600). Rotation/provider switch happens via `/provider` (alias `/api-key`). `process.env.ANTHROPIC_API_KEY` is still honored as a dev-only fallback inside `getAnthropicClient()` but must not appear in user-facing docs.
+6. **Every Zod schema gets a malformed-input test.** Phase-5 §2.
 
 ## Commands
 
