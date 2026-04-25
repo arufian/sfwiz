@@ -1,4 +1,12 @@
-# sfwiz
+```
+ ███████╗███████╗██╗    ██╗██╗███████╗
+ ██╔════╝██╔════╝██║    ██║██║╚══███╔╝
+ ███████╗█████╗  ██║ █╗ ██║██║  ███╔╝
+ ╚════██║██╔══╝  ██║███╗██║██║ ███╔╝
+ ███████║██║     ╚███╔███╔╝██║███████╗
+ ╚══════╝╚═╝      ╚══╝╚══╝ ╚═╝╚══════╝
+ Salesforce × Claude — terminal-native AI harness
+```
 
 **sfwiz** is a Claude-Code-style interactive TUI harness for the Salesforce ecosystem — built for Apex developers, LWC engineers, and Salesforce admins who want AI-assisted workflows without leaving the terminal.
 
@@ -33,7 +41,9 @@ See [`docs/submission/managed-agents.md`](docs/submission/managed-agents.md) for
 git clone https://github.com/arufian/sfwiz.git
 cd sfwiz
 bun install
-bun run poc        # PoC TUI demo (no SF org required)
+export ANTHROPIC_API_KEY=sk-ant-...
+bun scripts/dev.ts   # full TUI with live reload
+# or: ./dist/sfwiz   # pre-built binary
 ```
 
 ### Download pre-built binary

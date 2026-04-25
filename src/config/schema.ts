@@ -8,6 +8,8 @@ export const LLMConfig = z.object({
   provider: z.literal('anthropic'),
   model: z.string(),
   apiKeyEnv: z.string().default('ANTHROPIC_API_KEY'),
+  // API key stored directly (set via TUI setup flow; overrides apiKeyEnv)
+  apiKey: z.string().optional(),
 });
 export type LLMConfig = z.infer<typeof LLMConfig>;
 
