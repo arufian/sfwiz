@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. 190 tests pass, 0 TypeScript errors. Binary: `dist/sfwiz` (65.6 MB).**
+**2026-04-25: Phase 4 ALL 18 MILESTONES COMPLETE. Binary: `dist/sfwiz` (65.6 MB). Bug-fix pass in progress — not user-ready.**
 
-Phase 4 fully shipped. Key deliverables by milestone:
+Phase 4 fully shipped. Bug-fixing session started 2026-04-25 (post-M18 QA found multiple issues). Key deliverables by milestone:
 - **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tests/sanity.test.ts`, H4 smoke test
 - **M2**: Zod schemas — `src/config/schema.ts`, `src/personas/types.ts`, `src/session/types.ts`, `src/scraper/types.ts`, `src/tools/types.ts`
 - **M3**: AgentLoop — `src/llm/client.ts`, `src/agent/cache-hints.ts` (4-breakpoint), `src/agent/loop.ts` (streaming tool-use), H2 mock-fetch SSE guard
@@ -63,11 +63,11 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 
 ## Current phase
 
-**Phases 1–4 COMPLETE. Next: Phase 6 (Video) — demo recording + submission.**
+**Bug-fix pass in progress. Phases 1–4 implementation complete, but bugs found during QA — fixing before recording demo.**
 
-All 18 milestones shipped. Binary verified at `dist/sfwiz` (65.6 MB, darwin-arm64). 190 tests pass, 0 TypeScript errors.
+Binary at `dist/sfwiz` (65.6 MB, darwin-arm64) exists but not stable yet.
 
-Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo script + recording checklist. Then do submission-day prep (README demo-link update, repo flip).
+Next action for a fresh session: resume bug fixes. Once sfwiz launches and runs end-to-end without crashes, proceed to Phase 6 (Video) — read `.claude/plan/phase-6-video.md`.
 
 ## Phase map
 
@@ -78,8 +78,8 @@ Next action for a fresh session: read `.claude/plan/phase-6-video.md` for demo s
 | 2 Planning       | done                       | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session            |
 | 3 PoC (UI only)  | done (opentui)             | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1   |
 | 4 Implementation | **DONE** (M1–M18)          | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                  |
-| 5 Test           | ready                      | `.claude/plan/phase-5-test.md`           | runs after each milestone, not at end                                   |
-| 6 Video          | ready                      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
+| 5 Test           | **IN PROGRESS** (bug fixes)| `.claude/plan/phase-5-test.md`           | bugs found post-M18 — fix until stable, then proceed to Phase 6         |
+| 6 Video          | blocked (wait Phase 5)     | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
 | —                | —                          | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                    |
 | —                | session hand-off           | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders)                       |
 | —                | session hand-off           | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M18 complete — all milestones shipped + binary verified                              |
