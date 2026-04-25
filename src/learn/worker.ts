@@ -9,6 +9,7 @@ import { detectQmd, requireQmd } from '~/knowledge/detect';
 import { bootstrapCollections, COLLECTIONS } from '~/knowledge/collections';
 import { runEmbed } from '~/knowledge/embed';
 import { fetchSfCliRef } from '~/learn/sf-cli-fetcher';
+import { fetchCollectionDocs } from '~/learn/docs-fetcher';
 
 const opts = defaultSchedulerOptions({ bootDriftMs: 30_000, pollIntervalMs: 60_000 });
 const state: SchedulerState = { lastRunAt: null, status: 'idle' };
@@ -28,13 +29,40 @@ async function runLearning() {
   state.status = 'running';
   send({ type: 'status', status: 'running', lastRunAt: state.lastRunAt });
 
-  // Fetch SF CLI reference docs before embedding
+  // Step 1: Fetch raw docs content into collection dirs before embedding.
+  const docCollections = ['apex-ref', 'lwc-guide', 'sf-releases'] as const;
+  for (const col of docCollections) {
+    try {
+      await fetchCollectionDocs(col, {
+        onProgress: (p) => {
+          send({
+            type: 'status',
+            status: 'running',
+            lastRunAt: state.lastRunAt,
+          });
+          // Emit rough embed-style progress so the status bar updates.
+          self.postMessage({
+            type: 'embed:progress',
+            collection: col,
+            done: p.fetched,
+            total: p.total ?? 100,
+            currentItem: `fetching ${col}…`,
+          });
+        },
+      });
+    } catch (err) {
+      send({ type: 'error', message: `${col} fetch: ${String(err)}` });
+    }
+  }
+
+  // Fetch SF CLI reference
   try {
     await fetchSfCliRef();
   } catch (err) {
     send({ type: 'error', message: `sf-cli-ref fetch: ${String(err)}` });
   }
 
+  // Step 2: Embed all collections into qmd.
   for (const col of COLLECTIONS) {
     try {
       await runEmbed(col.name, { qmdBin: info.binPath });

@@ -1,10 +1,12 @@
 import type { ToolContext } from '~/tools/types';
 import { detectQmd, requireQmd } from '~/knowledge/detect';
-import { bootstrapCollections, listRegisteredCollections } from '~/knowledge/collections';
+import { bootstrapCollections, listRegisteredCollections, collectionHasContent } from '~/knowledge/collections';
 import { installQmd } from '~/knowledge/qmd-install';
 import { runEmbed } from '~/knowledge/embed';
+import { fetchCollectionDocs } from '~/learn/docs-fetcher';
+import { fetchSfCliRef } from '~/learn/sf-cli-fetcher';
 
-export type KnowledgeSubcommand = 'status' | 'install' | 'embed' | 'update';
+export type KnowledgeSubcommand = 'status' | 'install' | 'embed' | 'update' | 'fetch';
 
 export interface KnowledgeCommandResult {
   ok: boolean;
@@ -48,17 +50,51 @@ export async function knowledgeCommand(
       return { ok: true, message: `qmd ${info.version} installed.` };
     }
 
+    case 'fetch': {
+      const cols = ['apex-ref', 'lwc-guide', 'sf-releases'] as const;
+      let totalFetched = 0;
+      let totalErrors = 0;
+      for (const col of cols) {
+        const r = await fetchCollectionDocs(col, { force: true });
+        totalFetched += r.fetched;
+        totalErrors += r.errors;
+      }
+      await fetchSfCliRef(true);
+      return {
+        ok: true,
+        message: `Fetched ${totalFetched} doc pages (${totalErrors} errors). Run Embed to index them.`,
+      };
+    }
+
     case 'embed': {
       const info = requireQmd();
       bootstrapCollections(info.binPath);
-      await runEmbed('apex-ref', { qmdBin: info.binPath });
-      return { ok: true, message: 'apex-ref embed complete.' };
+      // Fetch docs first if dirs are empty.
+      const docCols = ['apex-ref', 'lwc-guide', 'sf-releases'] as const;
+      for (const col of docCols) {
+        if (!collectionHasContent(col)) {
+          await fetchCollectionDocs(col, { force: false });
+        }
+      }
+      await fetchSfCliRef(false);
+      for (const col of [...docCols, 'sf-cli-ref'] as const) {
+        await runEmbed(col, { qmdBin: info.binPath });
+      }
+      return { ok: true, message: 'All collections fetched and embedded.' };
     }
 
     case 'update': {
       const info = requireQmd();
-      await runEmbed('apex-ref', { qmdBin: info.binPath, force: true });
-      return { ok: true, message: 'Knowledge updated.' };
+      // Force re-fetch + re-embed all collections.
+      const docCols = ['apex-ref', 'lwc-guide', 'sf-releases'] as const;
+      for (const col of docCols) {
+        await fetchCollectionDocs(col, { force: true });
+      }
+      await fetchSfCliRef(true);
+      for (const col of [...docCols, 'sf-cli-ref'] as const) {
+        await runEmbed(col, { qmdBin: info.binPath, force: true });
+      }
+      return { ok: true, message: 'Knowledge re-fetched and updated.' };
     }
   }
 }

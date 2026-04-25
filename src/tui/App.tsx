@@ -1269,14 +1269,16 @@ export function App({
             options: [
               { label: 'Status', description: 'Show qmd version + collections' },
               { label: 'Install', description: 'Install @tobilu/qmd globally' },
-              { label: 'Embed', description: 'Embed apex-ref collection now' },
-              { label: 'Update', description: 'Force re-embed apex-ref' },
+              { label: 'Fetch', description: 'Download SF docs (Apex/LWC/releases/CLI ref)' },
+              { label: 'Embed', description: 'Fetch docs + embed all collections into qmd' },
+              { label: 'Update', description: 'Force re-fetch + re-embed all collections' },
             ],
             multiSelect: false,
           });
-          const map: Record<string, 'status' | 'install' | 'embed' | 'update'> = {
+          const map: Record<string, 'status' | 'install' | 'fetch' | 'embed' | 'update'> = {
             Status: 'status',
             Install: 'install',
+            Fetch: 'fetch',
             Embed: 'embed',
             Update: 'update',
           };
