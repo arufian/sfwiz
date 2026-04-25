@@ -1,0 +1,13 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`file status colors (snapshot) snapshot matches expected color map 1`] = `
+{
+  "changed": "#f8c200",
+  "conflict": "#ff6b6b",
+  "deleted": "#ef5350",
+  "ignored": "#555",
+  "new": "#4caf50",
+  "unchanged": "#aaa",
+  "unknown": "#777",
+}
+`;

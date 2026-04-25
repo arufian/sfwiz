@@ -24,6 +24,7 @@
     "@opentui/react": "^0.1.102",
     "@salesforce/core": "^8.28.4",
     "cheerio": "^1.2.0",
+    "chokidar": "^5.0.0",
     "dayjs": "^1.11.20",
     "jsforce": "^3.10.14",
     "react": "^19.2.5",
