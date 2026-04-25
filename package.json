@@ -22,7 +22,9 @@
     "@anthropic-ai/sdk": "^0.91.1",
     "@opentui/core": "^0.1.102",
     "@opentui/react": "^0.1.102",
+    "@salesforce/core": "^8.28.4",
     "dayjs": "^1.11.20",
+    "jsforce": "^3.10.14",
     "react": "^19.2.5",
     "zod": "^4.3.6"
   },
