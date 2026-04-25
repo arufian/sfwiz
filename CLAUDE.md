@@ -4,11 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-Phase-3 PoC shipped and file-split complete. `src/poc.tsx` is now a thin 39-line entry; logic lives under split structure. Run: `bun run poc`. Project scaffolding in place: `package.json`, `tsconfig.json` (with `~/` path alias added), `.gitignore`, `bun.lockb`. Repo published to `git@github.com:arufian/sfwiz.git` (branch `main`, private until submission day).
+**2026-04-25: Phase 4 M1–M6 complete. 64 tests pass, 0 TypeScript errors. Next: M7 (SF auth).**
 
-2026-04-24 layered 5 new UX demos on top of PoC: trust-workspace first-run gate (`Ctrl+W` replay), permission-mode badge (`Shift+Tab` cycle `ASK → AUTO → YOLO`), command palette (`Ctrl+P` + bare `/` on empty input, Crush-style), knowledge-embed status-bar progress (`Ctrl+G`), thinking + running-deploy loaders (`Ctrl+Y` / `Ctrl+R`) with a 9-bar random-walk equalizer animation. Ctrl+Click replaces Ctrl+E for tool-block expand/collapse.
+Phase 4 implementation underway. M1–M6 shipped and tagged (`m01`–`m06`). Key deliverables:
+- **M1**: Scaffolding — `src/cli.ts`, `src/tui/launch.tsx`, `scripts/build.ts`, `biome.json`, `tsconfig.json` updated, `tests/sanity.test.ts`, `tests/llm/agent-sdk-smoke.test.ts` (H4 guard)
+- **M2**: Zod schemas — `src/config/schema.ts`, `src/personas/types.ts`, `src/session/types.ts`, `src/scraper/types.ts`, `src/tools/types.ts`
+- **M3**: AgentLoop — `src/llm/client.ts` (singleton + reset), `src/agent/types.ts` (AgentEventMap incl. `subagent:*` H1 events), `src/agent/cache-hints.ts` (4-breakpoint caching H3), `src/agent/loop.ts` (streaming tool-use loop), `tests/agent/loop.integration.test.ts` (H2 mock-fetch SSE guard)
+- **M4**: Tool registry + permission gates — `src/tools/registry.ts`, `src/tools/gate.ts` (DestructiveOpGate), `src/tools/permission-mode.ts` (PermissionModeGuard)
+- **M5**: Core tools — `src/tools/interaction/ask_user.ts`, `src/tools/fs/` (read/list/edit/write/grep), `src/tools/shell/run_command.ts` (whitelist)
+- **M6**: Config/trust — `src/config/trust.ts` (TrustStore, corruption backup), `src/config/load.ts`, `src/config/save.ts`, `src/config/first-run.ts`, `src/llm/models-catalog.ts`; TuiEventBus in `src/tui/events.ts`
 
-Pre-M1 blockers resolved: (1) `src/poc.tsx` (~1860 lines) split into `src/fixtures/`, `src/types/ui.ts`, `src/ui/theme.ts`, `src/ui/overlays/`, `src/ui/panels/`, `src/ui/side/`, `src/tui/App.tsx` (349 lines); (2) `ChatBlock` now has stable `id: string` on every variant — `crypto.randomUUID()` at all construction sites, updaters target by id not array index; (3) palette down-arrow clamp bug fixed (`Math.max(0, ...)`); (4) `useGlobalKeys` hook extracted to `src/ui/hooks/useGlobalKeys.ts`. `bunx tsc --noEmit` passes 0 errors. See `.claude/plan/progress-2026-04-24.md` for session log. Next step is Phase 4 M1.
+Prior session (2026-04-24) layered 5 UX demos on PoC and split `src/poc.tsx` (~1860 lines) into `src/fixtures/`, `src/types/ui.ts`, `src/ui/theme.ts`, `src/ui/overlays/`, `src/ui/panels/`, `src/ui/side/`, `src/tui/App.tsx`. See `.claude/plan/progress-2026-04-24.md` for that log.
 
 ## RULES
 
@@ -46,11 +52,11 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 
 ## Current phase
 
-**Phases 1, 2, 3 DONE. Next: Phase 4 M1.**
+**Phases 1, 2, 3 DONE. Phase 4 IN PROGRESS — M1–M6 done, next M7.**
 
-Phase 3 PoC shipped as `src/poc.tsx` — runnable single-file OpenTUI/React skeleton with fake data. Framework switched from Ink 5 → `@opentui/react` + `@opentui/core` during PoC (Ink mouse scroll was unworkable; opentui gives native `<scrollbox>`, mouse wheel, kitty keyboard, alt-screen). `.claude/plan/phase-3-poc.md` has been reconciled to opentui; `.claude/plan/phase-1-research.md` still lists Ink — reconcile before or during M1. Keybindings documented in `HelpOverlay` inside `src/poc.tsx`.
+M1–M6 shipped and tagged. M7 = SF auth (`@salesforce/core` passthrough) + `/orgs` slash command + `sf login web` kick when org list is empty.
 
-Next action for a fresh session: read `.claude/plan/progress-2026-04-24.md` for last-session hand-off, then `.claude/plan/phase-4-implementation.md` §1 M1. Either begin M1 or do the phase-1-research reconcile first (user's call).
+Next action for a fresh session: read `.claude/plan/phase-4-implementation.md` M7 spec. Install `jsforce` + `@salesforce/core` if not yet in `package.json`, then implement `src/sf/auth.ts` + `src/tools/sf/sf_list_orgs.ts`.
 
 ## Phase map
 
@@ -60,11 +66,12 @@ Next action for a fresh session: read `.claude/plan/progress-2026-04-24.md` for 
 | 1 Research       | done                       | `.claude/plan/phase-1-research.md`       | read once to absorb prior-art + 18 locked decisions                     |
 | 2 Planning       | done                       | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session            |
 | 3 PoC (UI only)  | done (opentui)             | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1   |
-| 4 Implementation | ready                      | `.claude/plan/phase-4-implementation.md` | **execute milestones in order**; each milestone is a standalone session |
+| 4 Implementation | in progress (M1–M6 done)   | `.claude/plan/phase-4-implementation.md` | **execute milestones in order**; each milestone is a standalone session |
 | 5 Test           | ready                      | `.claude/plan/phase-5-test.md`           | runs after each milestone, not at end                                   |
 | 6 Video          | ready                      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                              |
 | —                | —                          | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                    |
-| —                | session hand-off           | `.claude/plan/progress-2026-04-24.md`    | last-session log: PoC polish + SOQL scenarios + 5 UX demos (trust / permission / palette / embed / loaders) |
+| —                | session hand-off           | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders)                       |
+| —                | session hand-off           | `.claude/plan/progress-2026-04-25.md`    | 2026-04-25: Phase 4 M1–M6 implementation (scaffolding → config/trust)                                       |
 
 ## Hackathon context
 
@@ -221,7 +228,7 @@ bun install                          # install deps
 bun run poc                          # launch PoC TUI (src/poc.tsx) in real terminal
 ```
 
-Post-M1 (not yet wired):
+M1+ commands (wired):
 
 ```bash
 bun scripts/dev.ts                   # watch + restart TUI
