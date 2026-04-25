@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .DS_Store
-bun.lockb
 *.log
 
 # internal prior-art docs (kept out of public repo)
@@ -13,5 +12,3 @@ progress.md
 # local user state (runtime)
 ~/.sfwiz/
 
-# claude
-.claude/

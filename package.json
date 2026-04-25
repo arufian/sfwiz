@@ -1,23 +1,37 @@
 {
   "name": "sfwiz",
-  "version": "0.0.0-poc",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Claude-Code-style TUI harness for the Salesforce ecosystem",
+  "bin": {
+    "sfwiz": "./dist/sfwiz"
+  },
   "scripts": {
     "poc": "bun run src/poc.tsx",
+    "dev": "bun scripts/dev.ts",
+    "build": "bun scripts/build.ts",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "format": "biome format --write .",
-    "lint": "biome ci"
+    "lint": "biome ci",
+    "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.119",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@opentui/core": "^0.1.102",
     "@opentui/react": "^0.1.102",
-    "react": "^19.2.5"
+    "dayjs": "^1.11.20",
+    "react": "^19.2.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
+    "@types/turndown": "^5.0.6",
+    "bun-types": "^1.3.13",
     "typescript": "^5.6.3"
   }
 }
