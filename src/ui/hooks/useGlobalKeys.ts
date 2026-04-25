@@ -41,6 +41,7 @@ export interface PaletteHandlers {
   onUp: () => void;
   onDown: (matchCount: number) => void;
   onConfirm: (pick: PaletteEntry | undefined) => void;
+  onTab: (label: string) => void;
   onBackspace: () => void;
   onChar: (ch: string) => void;
   paletteSel: number;
@@ -137,8 +138,11 @@ export function useGlobalKeys(
         palette.onUp();
         key.preventDefault();
       } else if (key.name === 'down') {
-        // Task 3a: fixed clamp — was missing Math.max(0, ...) guard
         palette.onDown(palette.paletteMatches.length);
+        key.preventDefault();
+      } else if (key.name === 'tab') {
+        const selected = palette.paletteMatches[palette.paletteSel];
+        if (selected) palette.onTab(selected.label);
         key.preventDefault();
       } else if (key.name === 'return') {
         palette.onConfirm(palette.paletteMatches[palette.paletteSel]);

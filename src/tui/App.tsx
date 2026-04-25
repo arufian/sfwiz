@@ -1035,6 +1035,10 @@ export function App({
           void handlePaletteSelect(pick.label);
         }
       },
+      onTab: (label) => {
+        setPaletteQuery(label);
+        setPaletteSel(0);
+      },
       onBackspace: () => {
         setPaletteQuery((q) => q.slice(0, -1));
         setPaletteSel(0);
