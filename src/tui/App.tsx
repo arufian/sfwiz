@@ -21,6 +21,7 @@ import type {
   EmbedProgressEvent,
   InstallProgressEvent,
 } from '~/learn/bus';
+import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import { initAnthropicClient, resetAnthropicClient, resolveApiKey } from '~/llm/client';
 import { listAvailableModels, type ModelChoice } from '~/llm/list-models';
 import { ANTHROPIC_MODELS, pickDefaultModel } from '~/llm/models-catalog';
@@ -397,6 +398,7 @@ export function App({
 
   const inputRef = useRef<TextareaRenderable | null>(null);
   const loopRef = useRef<AgentLoop | null>(null);
+  const conversationHistoryRef = useRef<MessageParam[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
   // Live side-panel state (replaces static fixture).
@@ -477,6 +479,9 @@ export function App({
 
     loop.on('turn:done', (finalText) => {
       setIsRunning(false);
+      if (finalText) {
+        conversationHistoryRef.current.push({ role: 'assistant', content: finalText });
+      }
       const t = loop.tokenTracker.get();
       setTokens({
         used: t.inputTokens + t.outputTokens + t.cacheCreationTokens + t.cacheReadTokens,
@@ -580,7 +585,11 @@ export function App({
     setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'user', text }]);
     setIsRunning(true);
 
-    loopRef.current?.run([{ role: 'user', content: text }]).catch((err: unknown) => {
+    const userMsg: MessageParam = { role: 'user', content: text };
+    conversationHistoryRef.current.push(userMsg);
+    const messagesForRun = [...conversationHistoryRef.current];
+
+    loopRef.current?.run(messagesForRun).catch((err: unknown) => {
       setIsRunning(false);
       setToast(`error: ${err instanceof Error ? err.message : String(err)}`);
     });
