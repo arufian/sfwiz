@@ -25,14 +25,17 @@ export function buildCachedToolDefs(tools: Tool[]): Array<{
 }> {
   return tools.map((tool, i) => {
     const shape = tool.parameters._def;
-    // Zod v4 object schema -> JSON schema (simplified; handles flat objects only).
     const properties: Record<string, { type: string; description?: string }> = {};
     const required: string[] = [];
     if (shape && 'shape' in shape) {
-      const s = shape.shape as Record<string, { _def: { typeName: string; description?: string } }>;
+      const s = shape.shape as Record<string, { _def: ZodDef; description?: string }>;
       for (const [key, val] of Object.entries(s)) {
-        properties[key] = { type: zodTypeToJsonType(val._def.typeName) };
-        required.push(key);
+        const { jsonType, isOptional, description } = unwrapZod(val._def);
+        const prop: { type: string; description?: string } = { type: jsonType };
+        const desc = description ?? val.description;
+        if (desc) prop.description = desc;
+        properties[key] = prop;
+        if (!isOptional) required.push(key);
       }
     }
     const def: {
@@ -45,7 +48,6 @@ export function buildCachedToolDefs(tools: Tool[]): Array<{
       description: tool.description,
       input_schema: { type: 'object', properties, required },
     };
-    // Cache_control on the LAST tool only (breakpoint 2).
     if (i === tools.length - 1) def.cache_control = EPHEMERAL;
     return def;
   });
@@ -100,11 +102,42 @@ function markLastBlock(
   return msg;
 }
 
+interface ZodDef {
+  typeName?: string;
+  type?: string;
+  description?: string;
+  innerType?: { _def: ZodDef };
+  defaultValue?: () => unknown;
+}
+
+/**
+ * Unwrap ZodOptional / ZodDefault / ZodNullable layers and return the
+ * underlying JSON-schema type. Zod v4 stores typeName under several keys
+ * (`typeName` legacy / `type` v4) so check both.
+ */
+function unwrapZod(def: ZodDef): { jsonType: string; isOptional: boolean; description?: string } {
+  let isOptional = false;
+  let cur: ZodDef | undefined = def;
+  let description: string | undefined;
+  while (cur) {
+    const tn = cur.typeName ?? cur.type;
+    if (cur.description) description = description ?? cur.description;
+    if (tn === 'ZodOptional' || tn === 'optional' || tn === 'ZodDefault' || tn === 'default' || tn === 'ZodNullable' || tn === 'nullable') {
+      isOptional = true;
+      cur = cur.innerType?._def;
+      continue;
+    }
+    return { jsonType: zodTypeToJsonType(tn ?? ''), isOptional, description };
+  }
+  return { jsonType: 'string', isOptional, description };
+}
+
 function zodTypeToJsonType(zodTypeName: string): string {
-  if (zodTypeName === 'ZodString') return 'string';
-  if (zodTypeName === 'ZodNumber') return 'number';
-  if (zodTypeName === 'ZodBoolean') return 'boolean';
-  if (zodTypeName === 'ZodArray') return 'array';
-  if (zodTypeName === 'ZodObject') return 'object';
+  if (zodTypeName === 'ZodString' || zodTypeName === 'string') return 'string';
+  if (zodTypeName === 'ZodNumber' || zodTypeName === 'number') return 'number';
+  if (zodTypeName === 'ZodBoolean' || zodTypeName === 'boolean') return 'boolean';
+  if (zodTypeName === 'ZodArray' || zodTypeName === 'array') return 'array';
+  if (zodTypeName === 'ZodObject' || zodTypeName === 'object') return 'object';
+  if (zodTypeName === 'ZodEnum' || zodTypeName === 'enum') return 'string';
   return 'string';
 }
