@@ -1214,8 +1214,54 @@ export function App({
               : 'No orgs authenticated. Run /connect to add one.';
           setBlocks((bs) => [...bs, { id: crypto.randomUUID(), kind: 'assistant', text: lines }]);
         } else if (cmd.handler === 'connect' || cmd.handler === 'login') {
-          const result = await connectCommand(ctx, cwd);
-          if (result.connected) void refreshOrg();
+          const loadingId = crypto.randomUUID();
+          let tickHandle: ReturnType<typeof setInterval> | null = null;
+          const startLoad = (label: string) => {
+            const startedAt = Date.now();
+            setBlocks((bs) => {
+              const existing = bs.find((b) => b.id === loadingId);
+              if (existing) {
+                return bs.map((b) =>
+                  b.id === loadingId ? { id: loadingId, kind: 'loading', label, elapsedS: 0 } : b,
+                );
+              }
+              return [...bs, { id: loadingId, kind: 'loading', label, elapsedS: 0 }];
+            });
+            if (tickHandle) clearInterval(tickHandle);
+            tickHandle = setInterval(() => {
+              const s = Math.floor((Date.now() - startedAt) / 1000);
+              setBlocks((bs) =>
+                bs.map((b) =>
+                  b.id === loadingId && b.kind === 'loading' ? { ...b, elapsedS: s } : b,
+                ),
+              );
+            }, 1000);
+          };
+          const stopLoad = () => {
+            if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+            setBlocks((bs) => bs.filter((b) => b.id !== loadingId));
+          };
+          const phaseLabels: Record<string, string> = {
+            'fetching-orgs': 'Fetching orgs',
+            connecting: 'Connecting',
+            'logging-in': 'Opening browser for sf login',
+          };
+          const result = await connectCommand(ctx, cwd, (phase) => {
+            if (phase === 'idle') stopLoad();
+            else startLoad(phaseLabels[phase] ?? 'Working');
+          });
+          stopLoad();
+          if (result.connected && result.alias) {
+            setCurrentOrg({ alias: result.alias, status: 'connected' });
+            setCurrentOrgHandle({
+              alias: result.alias,
+              username: result.username ?? result.alias,
+              instanceUrl: result.instanceUrl ?? '',
+              isProduction: !(result.instanceUrl ?? '').includes('sandbox'),
+            });
+          } else if (result.connected) {
+            void refreshOrg();
+          }
           setBlocks((bs) => [
             ...bs,
             {

@@ -166,6 +166,20 @@ function ChatBlocks({
             </box>
           );
         }
+        if (b.kind === 'loading') {
+          const dots = '.'.repeat((b.elapsedS % 3) + 1);
+          return (
+            <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
+              <box style={{ flexDirection: 'row' }}>
+                <text content="▍ " style={{ fg: INFLIGHT }} />
+                <text content={`${b.label}${dots} ${b.elapsedS}s`} style={{ fg: DIM }} />
+              </box>
+              <box style={{ marginLeft: 2 }}>
+                <Equalizer color={INFLIGHT} />
+              </box>
+            </box>
+          );
+        }
         return (
           <ToolBlock key={key} b={b} onToggle={() => onToggleTool?.(b.id)} />
         );

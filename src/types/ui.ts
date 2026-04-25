@@ -18,6 +18,7 @@ export type ChatBlock =
   | { id: string; kind: 'assistant'; text: string }
   | { id: string; kind: 'divider'; persona: string }
   | { id: string; kind: 'thinking'; elapsedS: number }
+  | { id: string; kind: 'loading'; label: string; elapsedS: number }
   | {
       id: string;
       kind: 'tool';
