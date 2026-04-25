@@ -26,7 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-26: Phase 4 supplement Stream B shipped (apex-ref + jsforce offline). Phase 5 BUG-1/2/3/4 resolved (a1477b2). Binary: `dist/sfwiz` (77.5 MB, +8 MB embedded knowledge bundle). 207 tests pass. Ready for E2E re-run.**
+**2026-04-26: Phase 5 round 2 E2E PASS — BUG-1/2/3/4 stay fixed on rebuilt binary. `/orgs` lists 20 orgs, `ask_user` modal renders before `sf_deploy_start`, palette Esc keeps chat clean, F1 opens HelpOverlay. Ready for Phase 6 (video). Binary: `dist/sfwiz` (77.5 MB), 207 tests pass.**
+
+Earlier: 2026-04-26 — Phase 4 supplement Stream B shipped (apex-ref + jsforce offline) + Phase 5 BUG-1/2/3/4 resolved (a1477b2).
 
 Earlier: 2026-04-25 — Phase 4 M1–M18 complete, 4 bugs found in E2E run.
 
@@ -56,9 +58,9 @@ Pre-flip checklist:
 
 ## Current phase
 
-**Phase 5 bug-fix round 1 done (2026-04-26).** BUG-1/2/3/4 from E2E (`E2E-Test-Result.MD`) all resolved in `a1477b2`. Phase 4 supplement Stream B (offline knowledge for apex-ref + jsforce) shipped in `4eea1a5`. Binary at `dist/sfwiz` (77.5 MB, darwin-arm64).
+**Phase 5 round 2 PASS (2026-04-26).** All four bugs (BUG-1/2/3/4) verified fixed on rebuilt binary `dist/sfwiz` (77.5 MB, darwin-arm64) — see `E2E-Test-Result.MD` "Round 2" section + `artifacts/round2/*.txt` captures. Probe binary (`dist/probe-orgs`, ad-hoc) returned 20 orgs in 7.7 s, deleted post-run.
 
-Next action for a fresh session: re-run the E2E checklist against the new binary to verify BUG-2/3/4 do not reproduce. If clean, move to Phase 6 (Video) — read `.claude/plan/phase-6-video.md`. If new bugs surface, log to `E2E-Test-Result.MD` and continue Phase 5.
+Next action for a fresh session: open `.claude/plan/phase-6-video.md` and start Phase 6 (demo video). Decision still pending: whether to ship video first or start Phase 4 supplement Stream A (jsforce expansion M26–M32) first — the submission video does not strictly need the new tools.
 
 ## Phase map
 
@@ -69,8 +71,8 @@ Next action for a fresh session: re-run the E2E checklist against the new binary
 | 2 Planning       | done                        | `.claude/plan/phase-2-planning.md`       | **source of truth for architecture** — re-open every session                         |
 | 3 PoC (UI only)  | done (opentui)              | `.claude/plan/phase-3-poc.md`            | PoC shipped at `src/poc.tsx` — Ink→opentui swap; reconcile spec in M1                |
 | 4 Implementation | **DONE** (M1–M18)           | `.claude/plan/phase-4-implementation.md` | all milestones shipped                                                               |
-| 5 Test           | **bugs 1–4 fixed** (re-run pending) | `.claude/plan/phase-5-test.md`   | BUG-1/2/3/4 resolved 2026-04-26 (a1477b2). Re-run E2E to confirm before Phase 6.    |
-| 6 Video          | blocked (wait Phase 5)      | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                                           |
+| 5 Test           | **DONE** (round 2 PASS)     | `.claude/plan/phase-5-test.md`           | BUG-1/2/3/4 resolved 2026-04-26 (a1477b2) + verified on rebuilt binary same day      |
+| 6 Video          | **next**                    | `.claude/plan/phase-6-video.md`          | final deliverable for hackathon submission                                           |
 | 4 supplement     | **partial** (B done, A pending) | `.claude/plan/phase-4-supplement-jsforce-and-knowledge.md` | Stream B M19–M25 done (apex-ref + jsforce shipped offline; 3 SF collections deferred to runtime fetch). Stream A M26–M32 (jsforce expansion) pending after Phase 5 bug-fix. |
 | —                | —                           | `.claude/plan/internal-references.md`    | auto-memory index, prior-art pointers, runtime paths                                 |
 | —                | session hand-off            | `.claude/plan/progress-2026-04-24.md`    | 2026-04-24: PoC polish + 5 UX demos (trust / permission / palette / embed / loaders) |

@@ -12,3 +12,8 @@ progress.md
 # local user state (runtime)
 ~/.sfwiz/
 
+# E2E artifacts contain real org aliases / emails — never commit
+artifacts/
+temp/
+E2E-Test-Result.MD
+
