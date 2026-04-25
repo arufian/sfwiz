@@ -4,15 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-Phase-3 PoC shipped. Single-file runnable TUI at `src/poc.tsx` (~1860 lines) using `@opentui/react` + `@opentui/core` on Bun. Fake fixtures, no LLM, no Salesforce calls. Run: `bun run poc`. Project scaffolding in place: `package.json`, `tsconfig.json`, `.gitignore`, `bun.lockb`. Repo published to `git@github.com:arufian/sfwiz.git` (branch `main`, private until submission day).
+Phase-3 PoC shipped and file-split complete. `src/poc.tsx` is now a thin 39-line entry; logic lives under split structure. Run: `bun run poc`. Project scaffolding in place: `package.json`, `tsconfig.json` (with `~/` path alias added), `.gitignore`, `bun.lockb`. Repo published to `git@github.com:arufian/sfwiz.git` (branch `main`, private until submission day).
 
-2026-04-24 layered 5 new UX demos on top of PoC: trust-workspace first-run gate (`Ctrl+W` replay), permission-mode badge (`Shift+Tab` cycle `ASK → AUTO → YOLO`), command palette (`Ctrl+P` + bare `/` on empty input, Crush-style), knowledge-embed status-bar progress (`Ctrl+G`), thinking + running-deploy loaders (`Ctrl+Y` / `Ctrl+R`) with a 9-bar random-walk equalizer animation. Ctrl+Click replaces Ctrl+E for tool-block expand/collapse. See `.claude/plan/progress-2026-04-24.md` for session log. Next step is Phase 4 M1.
+2026-04-24 layered 5 new UX demos on top of PoC: trust-workspace first-run gate (`Ctrl+W` replay), permission-mode badge (`Shift+Tab` cycle `ASK → AUTO → YOLO`), command palette (`Ctrl+P` + bare `/` on empty input, Crush-style), knowledge-embed status-bar progress (`Ctrl+G`), thinking + running-deploy loaders (`Ctrl+Y` / `Ctrl+R`) with a 9-bar random-walk equalizer animation. Ctrl+Click replaces Ctrl+E for tool-block expand/collapse.
+
+Pre-M1 blockers resolved: (1) `src/poc.tsx` (~1860 lines) split into `src/fixtures/`, `src/types/ui.ts`, `src/ui/theme.ts`, `src/ui/overlays/`, `src/ui/panels/`, `src/ui/side/`, `src/tui/App.tsx` (349 lines); (2) `ChatBlock` now has stable `id: string` on every variant — `crypto.randomUUID()` at all construction sites, updaters target by id not array index; (3) palette down-arrow clamp bug fixed (`Math.max(0, ...)`); (4) `useGlobalKeys` hook extracted to `src/ui/hooks/useGlobalKeys.ts`. `bunx tsc --noEmit` passes 0 errors. See `.claude/plan/progress-2026-04-24.md` for session log. Next step is Phase 4 M1.
 
 ## RULES
 
 - Before editing any file, read it first. Before modifying a function, grep for all callers. Research before you edit.
 - **Keep CLAUDE.md in sync with project progress.** Whenever work changes the current phase, milestone status, repo state, or locked decisions, update the matching section in this file in the same change. Stale status (e.g. "Phase 3: spec only" after the PoC ships) is a bug — fix it before ending the turn. Applies to: `## Repo state`, `## Current phase`, `## Phase map` status column, `## Locked architecture decisions`, and any TODO checkboxes that were completed.
 - **All planning docs live under `.claude/plan/` inside the project directory.** Any phase spec, milestone plan, design doc, RFC, or multi-step proposal must be written to `.claude/plan/<name>.md` and referenced from `CLAUDE.md`'s `## Phase map` (or equivalent index). Do not scatter planning files under the repo root, `docs/`, or memory. Memory is for cross-session rules and context, not project plans. When starting new planning work, read `.claude/plan/README.md` first — it is the index.
+- **Commit and push after every change.** After modifying any code file or planning doc, stage the changed files, commit with a descriptive message, and push to `origin main`. No change should sit uncommitted. Use explicit file paths in `git add` (not `git add .`). Commit message format: `<type>(<scope>): <short description>` (e.g. `plan(phase-4): switch to Anthropic SDK`, `feat(m03): agent loop streaming`). Run `rg -n "/Users/|arufian@"` on the staged diff before committing — must return 0 hits.
 
 ## TODO before flipping repo to public (submission day)
 
@@ -37,7 +40,7 @@ Ship **`sfwiz`** — a Claude-Code-style interactive TUI harness exclusively for
 - Development (Apex / LWC / SOQL / metadata / deploy)
 - Admin (org settings, users, permissions, sharing, 42-type Settings registry)
 - Scratch-org + existing-org deploy lifecycle
-- Multi-provider LLM (Vercel AI SDK)
+- Anthropic-only LLM (v1) — `@anthropic-ai/sdk` direct main loop + `@anthropic-ai/claude-agent-sdk` for subagents; multi-provider deferred to v2
 - Hybrid subagent orchestration (design → develop → review → qa → deploy)
 - Knowledge base + continuous learning via qmd (Apex ref, LWC guide, release notes)
 
@@ -68,7 +71,7 @@ Next action for a fresh session: read `.claude/plan/progress-2026-04-24.md` for 
 - Deliverable: working binary + demo video (90–120 s).
 - Judges likely without Agentforce-enabled orgs → Agentforce authoring deferred to v2; v1 ships a read-only `.agent` viewer only.
 - Voice-over via local Coqui XTTS setup — English is user's third language; prefer voice-only narration.
-- MVP subset = 12 of 18 milestones (see phase-4 §1, starred rows).
+- MVP subset = 17 of 18 milestones (all except M16 `.agent` viewer — see phase-4 §1).
 
 ## Target prizes (special prizes · $5k Claude API credits each)
 
@@ -142,11 +145,12 @@ Rules:
 
 - **Runtime**: Bun 1.1+ · TypeScript 5.6 strict · Biome (format+lint) · `bun test`
 - **TUI**: `@opentui/react` + `@opentui/core` 0.1.102+ · React 19 · `jsxImportSource: "@opentui/react"` · native `<scrollbox>` + mouse wheel + kitty keyboard · **switched from Ink 5 during PoC** (see `progress.md` §"Framework decision is now STALE"); `.claude/plan/phase-1-research.md` still lists Ink — reconcile in M1
-- **LLM**: Vercel AI SDK (`ai`, `@ai-sdk/anthropic|openai|google|groq`) · multi-provider first-run picker · `/provider` switches live · Anthropic `cacheControl` breakpoints
+- **LLM (interactive loop)**: `@anthropic-ai/sdk` directly · `messages.stream()` with manual tool-use loop (check `stop_reason === 'tool_use'`, dispatch tool, inject `tool_result`, continue) · prompt caching via `betas: ['prompt-caching-2024-07-31']` + `cache_control: { type: 'ephemeral' }` on stable system + tool-defs blocks · v1 = Anthropic only; multi-provider (OpenAI/Google/Groq) deferred to v2
+- **LLM (subagents handoff)**: `@anthropic-ai/claude-agent-sdk` ≥ 0.2.111 · `query()` async generator with `AgentDefinition` · reviewer + qa + scraper/embed worker run as named subagents with strict tool-scope · session capture via `system/init.session_id` for `resume` continuation · Opus 4.7 (`claude-opus-4-7`) requires SDK ≥ 0.2.111 — this is the observable handoff the "Best Managed Agents" prize requires
 - **Salesforce API**: `jsforce` 3 (REST/SOQL/Tooling/Metadata/Bulk)
 - **Salesforce auth**: `@salesforce/core` 8 passthrough of `sf` CLI creds · `/orgs` command picks target · auto-run `sf login web` if empty list
 - **Salesforce lifecycle**: shell out to `sf` CLI for scratch, deploy, retrieve, apex test
-- **Subagents**: hybrid — shared agent loop for `designer → developer → deploy-manager`, isolated sub-loops for `reviewer` + `qa` (strict tool-scope)
+- **Subagents**: hybrid — `@anthropic-ai/sdk` `messages.stream()` main loop for `designer → developer → deploy-manager`; `@anthropic-ai/claude-agent-sdk` `query()` with `AgentDefinition` for `reviewer` + `qa` + continuous-learn worker (strict tool-scope, SDK runs the loop, structured JSON returned via `result` message)
 - **Knowledge base**: `@tobilu/qmd` auto-installed · 3 collections under `~/.sfwiz/knowledge/` (`apex-ref` omit ConnectApi, `lwc-guide`, `sf-releases` current+prev-2 seasons) · MCP wire or in-proc stdio
 - **Continuous learning**: opt-in Bun Worker · daily 03:00 local + on-boot drift · `fetch` + cheerio + turndown · polite 1 rps per host · ETag/Last-Modified cache
 - **`ask_user` tool**: first-class + always-allowed · inline modal over chat · mandatory gate before `sf_deploy_start` / `sf_scratch_create` / `sf_assign_permset`
@@ -156,13 +160,55 @@ Rules:
 - **Knowledge bootstrap progress**: status-bar aggregate % + tailing current-item (`████ 48%  apex-ref · Database.update (117/243)`) · see phase-3-poc §8a + phase-4 M9
 - **Command palette**: `Ctrl+P` (or bare `/` on empty input) Crush-style modal · fuzzy-filter over dispatcher command registry + static toggles · see phase-3-poc §10 + phase-4 M15
 
+## Coding workflow
+
+Behavioral guidelines to reduce common LLM coding mistakes.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### Think before coding
+
+Before implementing: state assumptions explicitly. If uncertain, ask. If multiple interpretations exist, present them — don't pick silently. If a simpler approach exists, say so. If something is unclear, stop and name what's confusing.
+
+### Simplicity first
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+### Surgical changes
+
+Touch only what you must. Clean up only your own mess.
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+- Remove imports/variables/functions that YOUR changes made unused. Don't remove pre-existing dead code unless asked.
+
+Every changed line should trace directly to the user's request.
+
+### Goal-driven execution
+
+Transform tasks into verifiable goals before starting:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan with verify steps before coding.
+
 ## Hard rules
 
 1. **No mutation** of the author's prior local prototype repos (listed in `.claude/plan/internal-references.md`). Reuse via copy/port only.
 2. **sf CLI owns lifecycle · jsforce owns runtime API.** Do not re-implement what `sf` already does (scratch, deploy, test, retrieve).
 3. **Tool-use integration test FIRST** in M3 (`tests/agent/loop.integration.test.ts`). Guards the tool-schema-forwarding bug observed in a prior prototype (LLM SDK silently dropped the `tools` array on the outgoing request).
 4. **Reviewer persona read-only.** Tool-scope strictly `ask_user`, `read_file`, `list_files`, `grep`, `sf_query`, `sf_sobject_describe`, `qmd_query`.
-5. **Streaming mandatory from M3.** `streamText`, never `generateText`.
+5. **Streaming mandatory from M3.** `anthropic.messages.stream()` for the main loop; `query()` async generator for subagents. Never the non-streaming `messages.create()` for interactive turns.
 6. **Zero-config happy path**: if `sf` is logged in and `ANTHROPIC_API_KEY` set, `sfwiz` must work without further prompts (except first-run wizard).
 7. **Every Zod schema gets a malformed-input test.** Phase-5 §2.
 
