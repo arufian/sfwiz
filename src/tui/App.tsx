@@ -418,10 +418,10 @@ export function App({
   }, []);
 
   // --- permission prompt bridge ---
-  // Checks the persisted project allowlist first. If hit, resolves true
-  // synchronously without showing the prompt. Otherwise opens the overlay.
+  // Checks yolo mode and persisted allowlist first; both resolve without a prompt.
   const promptPermission = useCallback(
     (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
+      if (modeRef.current === 'yolo') return Promise.resolve(true);
       const key = permissionKey(toolName, args);
       if (permStore.isAllowed(cwd, key)) return Promise.resolve(true);
       return new Promise((resolve) => {
@@ -617,6 +617,7 @@ export function App({
         allow = true;
         break;
       case 'auto_mode':
+        modeRef.current = 'yolo'; // sync so promptPermission sees it before re-render
         setMode('yolo');
         setToast('permission mode: YOLO · auto-approve all non-destructive ops');
         allow = true;

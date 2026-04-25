@@ -13,18 +13,47 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   run_command: 'Run a shell command',
 };
 
+export type PermissionDecision =
+  | 'allow_project'
+  | 'allow_once'
+  | 'auto_mode'
+  | 'deny';
+
+export const PERMISSION_DECISIONS: PermissionDecision[] = [
+  'allow_project',
+  'allow_once',
+  'auto_mode',
+  'deny',
+];
+
+const OPTION_LABELS: Record<PermissionDecision, string> = {
+  allow_project: 'Allow for this project',
+  allow_once: 'Allow once',
+  auto_mode: 'Auto-mode (always allowed)',
+  deny: 'Deny',
+};
+
 function summarizeArgs(toolName: string, args: Record<string, unknown>): string {
   if (toolName === 'run_command' && typeof args.command === 'string') {
-    return args.command.slice(0, 80);
+    const cmd = args.command;
+    const rawArgs = args.args;
+    const argList = Array.isArray(rawArgs)
+      ? rawArgs.filter((a): a is string => typeof a === 'string')
+      : typeof rawArgs === 'string'
+        ? (() => {
+            try {
+              const p = JSON.parse(rawArgs);
+              if (Array.isArray(p)) return p.filter((a): a is string => typeof a === 'string');
+            } catch {}
+            return rawArgs.split(/\s+/).filter(Boolean);
+          })()
+        : [];
+    return [cmd, ...argList].join(' ').slice(0, 80);
   }
   if (typeof args.path === 'string') return args.path;
   if (typeof args.dir === 'string') return args.dir;
   if (typeof args.cwd === 'string') return args.cwd;
-  try {
-    return JSON.stringify(args).slice(0, 80);
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 export function PermissionPrompt({
@@ -47,12 +76,11 @@ export function PermissionPrompt({
       <text fg={ACCENT}>{`  ${desc}`}</text>
       {arg ? <text fg={DIM}>{`  ${arg}`}</text> : null}
       <text> </text>
-      <text
-        fg={selected === 0 ? ACCENT : '#aaa'}
-      >{`${selected === 0 ? '● ' : '○ '}Allow once`}</text>
-      <text fg={selected === 1 ? ACCENT : '#aaa'}>{`${selected === 1 ? '● ' : '○ '}Deny`}</text>
+      {PERMISSION_DECISIONS.map((d, i) => (
+        <text key={d} fg={selected === i ? ACCENT : '#aaa'}>{`${selected === i ? '● ' : '○ '}${OPTION_LABELS[d]}`}</text>
+      ))}
       <text> </text>
-      <text fg={DIM}>{'↑/↓ select · Enter confirm · Esc deny · /permissions to change mode'}</text>
+      <text fg={DIM}>{'↑/↓ select · Enter confirm · Esc deny'}</text>
     </box>
   );
 }
