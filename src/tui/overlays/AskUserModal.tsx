@@ -14,7 +14,9 @@ export function AskUserModal({
   selected: number;
 }) {
   const maxLen = Math.max(...payload.options.map((o) => o.label.length), 20);
-  const width = Math.max(52, maxLen + 12);
+  const width = Math.max(56, maxLen + 12);
+  const selectedOpt = payload.options[selected];
+  const preview = selectedOpt?.preview;
 
   return (
     <box
@@ -31,6 +33,15 @@ export function AskUserModal({
           {`${i === selected ? '● ' : '○ '}${opt.label}${opt.description ? `  ${opt.description}` : ''}`}
         </text>
       ))}
+      {preview ? (
+        <>
+          <text>{' '}</text>
+          <text fg={DIM}>{`preview ${'─'.repeat(Math.max(2, width - 11))}`}</text>
+          {preview.split('\n').map((line, i) => (
+            <text key={`preview-${i}`} fg={DIM}>{` ${line}`}</text>
+          ))}
+        </>
+      ) : null}
       <text>{' '}</text>
       <text fg={DIM}>{'↑/↓ select · Enter confirm · Esc cancel'}</text>
     </box>

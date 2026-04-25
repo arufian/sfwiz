@@ -28,6 +28,7 @@ import { ANTHROPIC_MODELS, pickDefaultModel } from '~/llm/models-catalog';
 import { listOrgs } from '~/sf/auth';
 import type { AskUserPayload, AskUserResult, OrgHandle } from '~/tools/types';
 import type { OrgSummary } from '~/ui/panels/SidePanel';
+import { INITIAL_CHAT } from '~/fixtures/chat';
 
 import { PermissionStore } from '~/config/permissions';
 import { initProject } from '~/dispatcher/commands/init';
@@ -365,6 +366,8 @@ export function App({
     }, 0);
     return Math.round(sum / total);
   }, [embedRows]);
+
+  const embedsDone = useMemo(() => embedRows.every((r) => r.status === 'done'), [embedRows]);
 
   const finishQmdPhase = useCallback(() => {
     setSetupPhase((prev) => (prev === 'qmd' ? 'api-key' : prev));
@@ -1041,6 +1044,21 @@ export function App({
     }
   });
 
+  // Hidden demo shortcut: Ctrl+Cmd+D (super+ctrl) or Ctrl+Alt+D (meta+ctrl)
+  // Not shown in help or keybind hints.
+  useKeyboard((key) => {
+    if (key.ctrl && key.meta && key.name === 'd') {
+      if (overlay !== null) return; // don't fire while overlays are open
+      setBlocks((bs) => {
+        const next = bs.length === 0 ? INITIAL_CHAT : [];
+        setToast(next.length === 0 ? 'demo cleared' : `demo loaded · ${next.length} blocks`);
+        if (next.length === 0) conversationHistoryRef.current = [];
+        return next;
+      });
+      key.preventDefault();
+    }
+  });
+
   const cyclePermissionMode = useCallback(() => {
     setMode((m) => {
       const i = PERMISSION_MODES.indexOf(m);
@@ -1643,7 +1661,14 @@ export function App({
         backgroundColor: getBgColor(bgColorIdx),
       }}
     >
-      <LiveStatusBar />
+      <LiveStatusBar
+        org={currentOrg}
+        modelName={modelSummaryFromId(currentModelId)?.name ?? null}
+        tokens={tokens.used > 0 ? tokens : null}
+        mode={mode}
+        qmdInstalled={qmdInfo !== null}
+        embedsDone={embedsDone}
+      />
       {isSplash ? (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
           <SplashView tip={splashTip} />
@@ -1658,7 +1683,16 @@ export function App({
       ) : (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
           {treeOpen ? <DirTree projectRoot={cwd} org={currentOrgHandle} /> : null}
-          <ChatPanel blocks={blocks} onToggleTool={() => {}} reducedMotion={reducedMotion} />
+          <ChatPanel
+            blocks={blocks}
+            onToggleTool={(id) =>
+              setBlocks((bs) =>
+                bs.map((b) =>
+                  b.id === id && b.kind === 'tool' ? { ...b, expanded: !b.expanded } : b,
+                ),
+              )
+            }
+          />
           <SidePanel
             view={sideView}
             org={currentOrg}
