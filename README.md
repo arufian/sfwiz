@@ -16,8 +16,6 @@
 
 ![SFWiz — full pipeline run in the terminal](docs/screenshot.png)
 
-[Demo video — coming soon (submission day)]
-
 ## Architecture
 
 - **Orchestrator** (`@anthropic-ai/sdk` `messages.stream()`): streaming tool-use with manual dispatch.
