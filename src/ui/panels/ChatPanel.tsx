@@ -13,6 +13,28 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+const WAND_FRAMES = [
+  '│╲      ',
+  '│ ╲ ✦   ',
+  '│  │✦   ',
+  '│  │ ✦  ',
+  '│   ╱·  ',
+  '│   ─✦· ',
+  '│    ─˙ ',
+  '│   ╱ · ',
+  '│  ╱  ˙ ',
+  '│ ╲   · ',
+] as const;
+
+function WandAnimation() {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES.length), 100);
+    return () => clearInterval(id);
+  }, []);
+  return <text content={WAND_FRAMES[frame]!} style={{ fg: ACCENT }} />;
+}
+
 export function Equalizer({
   color = INFLIGHT,
   label,
@@ -155,28 +177,20 @@ function ChatBlocks({
         }
         if (b.kind === 'thinking') {
           return (
-            <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
-              <box style={{ flexDirection: 'row' }}>
-                <text content="▍ " style={{ fg: INFLIGHT }} />
-                <text content={`thinking… ${b.elapsedS}s`} style={{ fg: DIM }} />
-              </box>
-              <box style={{ marginLeft: 2 }}>
-                <Equalizer color={INFLIGHT} />
-              </box>
+            <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
+              <text content="▍ " style={{ fg: INFLIGHT }} />
+              <text content={`thinking… ${b.elapsedS}s `} style={{ fg: DIM }} />
+              <WandAnimation />
             </box>
           );
         }
         if (b.kind === 'loading') {
           const dots = '.'.repeat((b.elapsedS % 3) + 1);
           return (
-            <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
-              <box style={{ flexDirection: 'row' }}>
-                <text content="▍ " style={{ fg: INFLIGHT }} />
-                <text content={`${b.label}${dots} ${b.elapsedS}s`} style={{ fg: DIM }} />
-              </box>
-              <box style={{ marginLeft: 2 }}>
-                <Equalizer color={INFLIGHT} />
-              </box>
+            <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
+              <text content="▍ " style={{ fg: INFLIGHT }} />
+              <text content={`${b.label}${dots} ${b.elapsedS}s `} style={{ fg: DIM }} />
+              <WandAnimation />
             </box>
           );
         }
