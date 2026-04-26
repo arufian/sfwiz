@@ -13,20 +13,16 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Wand sweeps left→right arc, ✦ burst at peak (│), stars trail and fade as wand returns
+// Wand spins clockwise in place: thick body ══, small head ●, stars trail tip each frame
 const WAND_FRAMES = [
-  '╲─         ',
-  ' ╲─  ˙     ',
-  '  ─╲ ·     ',
-  '   ─╱ ✦    ',
-  '    ╱  ✦✦  ',
-  '     │ ✦✦✦ ',
-  '     ╱✦✦   ',
-  '    ╱  ✦·˙ ',
-  '   ─   ·˙  ',
-  '  ─╲    ˙  ',
-  ' ╲─        ',
-  '╲─         ',
+  '══●✦    ',  // → 3 o'clock
+  '═╲● ✦   ',  // ↘ 4:30
+  ' ═│● ·  ',  // ↓ 6 o'clock
+  ' ╱═●  · ',  // ↙ 7:30
+  '✦  ●══  ',  // ← 9 o'clock
+  ' ✦ ●╲═  ',  // ↖ 10:30
+  '  · ●│═ ',  // ↑ 12 o'clock
+  '   · ●╱═',  // ↗ 1:30
 ] as const;
 
 function WandAnimation() {
