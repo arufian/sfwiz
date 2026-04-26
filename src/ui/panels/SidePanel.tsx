@@ -25,14 +25,9 @@ export interface TokenSummary {
 }
 
 function LogoBlock() {
-  const stripe = '╱'.repeat(30);
   return (
-    <box style={{ flexDirection: 'column' }}>
-      <text content={stripe} style={{ fg: ACCENT }} />
-      <box style={{ flexDirection: 'row', marginTop: 1, marginBottom: 1 }}>
-        <ascii-font text="SFWIZ" font="tiny" style={{ color: ACCENT }} />
-      </box>
-      <text content={stripe} style={{ fg: ACCENT }} />
+    <box style={{ flexDirection: 'column', marginBottom: 1 }}>
+      <ascii-font text="sfwiz" font="block" style={{ color: ACCENT }} />
     </box>
   );
 }
