@@ -26,7 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-26: Phase 5 round 2 E2E PASS — BUG-1/2/3/4 stay fixed on rebuilt binary. `/orgs` lists 20 orgs, `ask_user` modal renders before `sf_deploy_start`, palette Esc keeps chat clean, F1 opens HelpOverlay. Ready for Phase 6 (video). Binary: `dist/sfwiz` (77.5 MB), 207 tests pass.**
+**2026-04-27: Phase 6 video Part 2 scenes rewritten with /remotion skill — TransitionSeries wiring, Easing.bezier, premountFor, frame-as-prop hook safety. New scenes: ClaudeCodeWorkspace (B1), SalesforcePipeline (B2, Opus-4.7 orchestrator strip), KnowledgeGapSplit (B3, missing-term chips), ResourceHunt (B4, physical books + +47KB card), ToolingWall (B5, 5 failures + timer). Updated timing.ts (beat durations +15 each for transition padding, voPainPointsStart 900→885). tsc clean. VO scripts updated. Reviewer A/B plans + POV judge verdict in .claude/plan/.**
+
+Earlier: **2026-04-26: Phase 5 round 2 E2E PASS — BUG-1/2/3/4 stay fixed on rebuilt binary. `/orgs` lists 20 orgs, `ask_user` modal renders before `sf_deploy_start`, palette Esc keeps chat clean, F1 opens HelpOverlay. Ready for Phase 6 (video). Binary: `dist/sfwiz` (77.5 MB), 207 tests pass.**
 
 Earlier: 2026-04-26 — Phase 4 supplement Stream B shipped (apex-ref + jsforce offline) + Phase 5 BUG-1/2/3/4 resolved (a1477b2).
 
