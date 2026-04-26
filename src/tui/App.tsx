@@ -752,6 +752,11 @@ export function App({
     void refreshOrg();
   }, [apiKeyReady, setupPhase, refreshOrg]);
 
+  // Keep AgentLoop ctx.org in sync with the selected org.
+  useEffect(() => {
+    loopRef.current?.setOrg(currentOrgHandle);
+  }, [currentOrgHandle]);
+
   // --- session persistence: append new blocks + update meta ---
   useEffect(() => {
     blocksRef.current = blocks;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Tool, ToolContext } from '~/tools/types';
 import { getJsforceConnection } from '~/sf/connection';
+import { resolveDefaultOrg } from '~/sf/project';
 
 const Params = z.object({
   sobjectType: z.string().min(1).describe('SObject API name, e.g. Account or MyCustomObj__c'),
@@ -12,8 +13,8 @@ export const sfSobjectDescribe: Tool<typeof Params> = {
   description: 'Describe a Salesforce SObject (fields, relationships, picklists) using jsforce.',
   parameters: Params,
   async execute(args, ctx: ToolContext) {
-    const username = args.targetOrg ?? ctx.org?.username;
-    if (!username) throw new Error('No active org.');
+    const username = args.targetOrg ?? ctx.org?.username ?? resolveDefaultOrg(process.cwd());
+    if (!username) throw new Error('No active org. Run /connect or set a default org with `sf config set target-org <alias>`.');
 
     const conn = await getJsforceConnection(username);
     const meta = await conn.describe(args.sobjectType);

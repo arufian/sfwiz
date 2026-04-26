@@ -12,7 +12,7 @@ import type { PermissionMode } from '~/config/schema';
 import { getAnthropicClient } from '~/llm/client';
 import { DestructiveOpGate } from '~/tools/gate';
 import { PermissionModeGuard } from '~/tools/permission-mode';
-import type { Tool, ToolContext } from '~/tools/types';
+import type { Tool, ToolContext, OrgHandle } from '~/tools/types';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const MAX_TOOL_ROUNDS = 20; // guard against infinite loops
@@ -46,7 +46,7 @@ export class AgentLoop extends EventEmitter {
   private readonly systemPrompt: string;
   private readonly tools: Tool[];
   private readonly model: string;
-  private readonly ctx: Partial<ToolContext>;
+  private ctx: Partial<ToolContext>;
   private readonly abortController: AbortController;
   private readonly client: Anthropic;
   private readonly permGuard: PermissionModeGuard;
@@ -85,6 +85,10 @@ export class AgentLoop extends EventEmitter {
     listener: (...args: EmitArgs<K>) => void,
   ): this {
     return super.on(event as string, listener as (...args: unknown[]) => void);
+  }
+
+  setOrg(org: OrgHandle | null): void {
+    this.ctx = { ...this.ctx, org };
   }
 
   /**
