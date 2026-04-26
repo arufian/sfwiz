@@ -13,23 +13,26 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// Wand sweeps left→right arc, ✦ burst at peak (│), stars trail and fade as wand returns
 const WAND_FRAMES = [
-  '│╲      ',
-  '│ ╲ ✦   ',
-  '│  │✦   ',
-  '│  │ ✦  ',
-  '│   ╱·  ',
-  '│   ─✦· ',
-  '│    ─˙ ',
-  '│   ╱ · ',
-  '│  ╱  ˙ ',
-  '│ ╲   · ',
+  '╲─         ',
+  ' ╲─  ˙     ',
+  '  ─╲ ·     ',
+  '   ─╱ ✦    ',
+  '    ╱  ✦✦  ',
+  '     │ ✦✦✦ ',
+  '     ╱✦✦   ',
+  '    ╱  ✦·˙ ',
+  '   ─   ·˙  ',
+  '  ─╲    ˙  ',
+  ' ╲─        ',
+  '╲─         ',
 ] as const;
 
 function WandAnimation() {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES.length), 100);
+    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES.length), 80);
     return () => clearInterval(id);
   }, []);
   return <text content={WAND_FRAMES[frame]!} style={{ fg: ACCENT }} />;
