@@ -27,7 +27,7 @@ export interface TokenSummary {
 function LogoBlock() {
   return (
     <box style={{ flexDirection: 'column', marginBottom: 1 }}>
-      <ascii-font text="sfwiz" font="block" style={{ color: ACCENT }} />
+      <ascii-font text="sfwiz" font="shade" style={{ color: ACCENT }} />
     </box>
   );
 }
