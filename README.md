@@ -14,6 +14,8 @@
 
 ## Demo
 
+![SFWiz — full pipeline run in the terminal](docs/screenshot.png)
+
 [Demo video — coming soon (submission day)]
 
 ## Architecture
