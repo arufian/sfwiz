@@ -103,6 +103,61 @@ export function parseLine(raw: string): MdLine {
   return { content: raw, bullet: '', heading: 0 };
 }
 
+export function isTableRow(line: string): boolean {
+  const t = line.trim();
+  return t.startsWith('|') && t.endsWith('|') && t.length > 1;
+}
+
+export function isSeparatorRow(line: string): boolean {
+  return isTableRow(line) && /^\|[\s:|-]+\|$/.test(line.trim());
+}
+
+export function parseTableRow(line: string): string[] {
+  const t = line.trim();
+  return t
+    .slice(1, -1)
+    .split('|')
+    .map((c) => c.trim());
+}
+
+export function TableBlock({ rows }: { rows: string[][] }) {
+  const data = rows.filter((r) => !r.every((c) => /^:?-+:?$/.test(c)));
+  if (data.length === 0) return <></>;
+
+  const numCols = Math.max(...data.map((r) => r.length));
+  const widths = Array.from({ length: numCols }, (_, ci) =>
+    Math.max(...data.map((r) => (r[ci] ?? '').length)),
+  );
+
+  const sep = '┼' + widths.map((w) => '─'.repeat(w + 2)).join('┼') + '┼';
+
+  return (
+    <box style={{ flexDirection: 'column' }}>
+      {data.map((row, ri) => {
+        const isHeader = ri === 0;
+        const cells = Array.from({ length: numCols }, (_, ci) => {
+          const cell = row[ci] ?? '';
+          return ` ${cell.padEnd(widths[ci] ?? 0)} `;
+        });
+        const rowLine = '│' + cells.join('│') + '│';
+        return (
+          <Fragment key={ri}>
+            <text
+              content={rowLine}
+              style={{
+                fg: isHeader ? ACCENT : undefined,
+                attributes: isHeader ? TextAttributes.BOLD : undefined,
+              }}
+            />
+            {isHeader ? <text content={sep} style={{ fg: DIM }} /> : null}
+          </Fragment>
+        );
+      })}
+      <text content={'└' + widths.map((w) => '─'.repeat(w + 2)).join('┴') + '┘'} style={{ fg: DIM }} />
+    </box>
+  );
+}
+
 /**
  * Render one markdown line as a row of styled `<text>` spans. opentui renders
  * adjacent <text> elements inline within a flex-row, so we get inline bold +

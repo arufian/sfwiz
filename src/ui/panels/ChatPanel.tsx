@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { CAPABILITY_HINTS, SPLASH_TIPS } from '~/fixtures/misc';
 import type { ChatBlock } from '~/types/ui';
 import { ACCENT, BORDER, DIM, ERR, INFLIGHT, OK, WARN } from '~/ui/theme';
-import { MarkdownLine } from '~/ui/util/markdown';
+import { MarkdownLine, TableBlock, isTableRow, isSeparatorRow, parseTableRow } from '~/ui/util/markdown';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,11 +137,39 @@ function ChatBlocks({
           );
         }
         if (b.kind === 'assistant') {
+          const lines = b.text.split('\n');
+          type Seg = { type: 'lines'; lines: string[] } | { type: 'table'; rows: string[][] };
+          const segments: Seg[] = [];
+          let li = 0;
+          while (li < lines.length) {
+            const line = lines[li]!;
+            if (isTableRow(line)) {
+              const tableLines: string[] = [];
+              while (li < lines.length && (isTableRow(lines[li]!) || isSeparatorRow(lines[li]!))) {
+                tableLines.push(lines[li]!);
+                li++;
+              }
+              segments.push({ type: 'table', rows: tableLines.map(parseTableRow) });
+            } else {
+              const last = segments[segments.length - 1];
+              if (last?.type === 'lines') {
+                last.lines.push(line);
+              } else {
+                segments.push({ type: 'lines', lines: [line] });
+              }
+              li++;
+            }
+          }
           return (
             <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
-              {b.text.split('\n').map((line, j) => (
-                <MarkdownLine key={`${key}-${j}`} line={line} />
-              ))}
+              {segments.flatMap((seg, si) => {
+                if (seg.type === 'table') {
+                  return [<TableBlock key={`${key}-t-${si}`} rows={seg.rows} />];
+                }
+                return seg.lines.map((line, j) => (
+                  <MarkdownLine key={`${key}-${si}-${j}`} line={line} />
+                ));
+              })}
             </box>
           );
         }
