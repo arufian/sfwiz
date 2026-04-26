@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo state
 
-**2026-04-27: Phase 6 video Part 2 scenes rewritten with /remotion skill — TransitionSeries wiring, Easing.bezier, premountFor, frame-as-prop hook safety. New scenes: ClaudeCodeWorkspace (B1), SalesforcePipeline (B2, Opus-4.7 orchestrator strip), KnowledgeGapSplit (B3, missing-term chips), ResourceHunt (B4, physical books + +47KB card), ToolingWall (B5, 5 failures + timer). Updated timing.ts (beat durations +15 each for transition padding, voPainPointsStart 900→885). tsc clean. VO scripts updated. Reviewer A/B plans + POV judge verdict in .claude/plan/.**
+**2026-04-27: Phase 6 video Part 2 scenes rewritten with /remotion skill — TransitionSeries wiring, Easing.bezier, premountFor, frame-as-prop hook safety. New scenes: ClaudeCodeWorkspace (B1, no sfwiz label — "claude code"), SalesforcePipeline (B2, Opus-4.7 orchestrator strip), KnowledgeGapSplit (B3, side-by-side, missing-term chips), ResourceHunt (B4, physical books + +47KB card), ToolingWall (B5, 5 failures + timer, DevOps_Deployer not sfwiz). Updated timing.ts (beat durations +15 each for transition padding, voPainPointsStart 900→885). VO WAVs regenerated via Coqui XTTS (clip1=22s, clip2=30s after 1.42x speed). showVo prop controls audio. tsc clean. 3 hero stills verified (B1/B3/B5).**
 
 Earlier: **2026-04-26: Phase 5 round 2 E2E PASS — BUG-1/2/3/4 stay fixed on rebuilt binary. `/orgs` lists 20 orgs, `ask_user` modal renders before `sf_deploy_start`, palette Esc keeps chat clean, F1 opens HelpOverlay. Ready for Phase 6 (video). Binary: `dist/sfwiz` (77.5 MB), 207 tests pass.**
 
