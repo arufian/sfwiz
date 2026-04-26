@@ -13,25 +13,33 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Wand spins clockwise in place: thick body ══, small head ●, stars trail tip each frame
-const WAND_FRAMES = [
-  '══●✦    ',  // → 3 o'clock
-  '═╲● ✦   ',  // ↘ 4:30
-  ' ═│● ·  ',  // ↓ 6 o'clock
-  ' ╱═●  · ',  // ↙ 7:30
-  '✦  ●══  ',  // ← 9 o'clock
-  ' ✦ ●╲═  ',  // ↖ 10:30
-  '  · ●│═ ',  // ↑ 12 o'clock
-  '   · ●╱═',  // ↗ 1:30
+// 2D wand spinning clockwise: 8 frames × 3 rows × 9 cols, 80ms/frame = 640ms loop
+// Body ══ thick, head ● small, ✦ leads the tip
+const WAND_FRAMES_2D = [
+  ['         ', '   ══●✦  ', '         '],  // → 3 o'clock
+  ['    ═    ', '     ╲   ', '      ●✦ '],  // ↘ 4:30
+  ['    ═    ', '    │    ', '    ●    '],  // ↓ 6 o'clock
+  ['      ═  ', '     ╱   ', '   ✦●    '],  // ↙ 7:30
+  ['         ', '  ✦●══   ', '         '],  // ← 9 o'clock
+  ['  ✦●     ', '    ╲    ', '     ═   '],  // ↖ 10:30
+  ['    ●    ', '    │    ', '    ═    '],  // ↑ 12 o'clock
+  ['     ●✦  ', '    ╱    ', '   ═     '],  // ↗ 1:30
 ] as const;
 
 function WandAnimation() {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES.length), 80);
+    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES_2D.length), 80);
     return () => clearInterval(id);
   }, []);
-  return <text content={WAND_FRAMES[frame]!} style={{ fg: ACCENT }} />;
+  const rows = WAND_FRAMES_2D[frame]!;
+  return (
+    <box style={{ flexDirection: 'column', marginLeft: 2 }}>
+      {rows.map((row, i) => (
+        <text key={i} content={row} style={{ fg: ACCENT }} />
+      ))}
+    </box>
+  );
 }
 
 export function Equalizer({
@@ -176,9 +184,11 @@ function ChatBlocks({
         }
         if (b.kind === 'thinking') {
           return (
-            <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
-              <text content="▍ " style={{ fg: INFLIGHT }} />
-              <text content={`thinking… ${b.elapsedS}s `} style={{ fg: DIM }} />
+            <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
+              <box style={{ flexDirection: 'row' }}>
+                <text content="▍ " style={{ fg: INFLIGHT }} />
+                <text content={`thinking… ${b.elapsedS}s`} style={{ fg: DIM }} />
+              </box>
               <WandAnimation />
             </box>
           );
@@ -186,9 +196,11 @@ function ChatBlocks({
         if (b.kind === 'loading') {
           const dots = '.'.repeat((b.elapsedS % 3) + 1);
           return (
-            <box key={key} style={{ flexDirection: 'row', marginBottom: 1 }}>
-              <text content="▍ " style={{ fg: INFLIGHT }} />
-              <text content={`${b.label}${dots} ${b.elapsedS}s `} style={{ fg: DIM }} />
+            <box key={key} style={{ flexDirection: 'column', marginBottom: 1 }}>
+              <box style={{ flexDirection: 'row' }}>
+                <text content="▍ " style={{ fg: INFLIGHT }} />
+                <text content={`${b.label}${dots} ${b.elapsedS}s`} style={{ fg: DIM }} />
+              </box>
               <WandAnimation />
             </box>
           );
