@@ -5,9 +5,10 @@ dist/
 
 # internal prior-art docs (kept out of public repo)
 docs/internal/
-demo/vo*.wav
-demo/voice-sample.wav
 progress.md
+
+# Phase-6 video pipeline (private — drafts, VO, renders, voice samples)
+demo/
 
 # local user state (runtime)
 ~/.sfwiz/

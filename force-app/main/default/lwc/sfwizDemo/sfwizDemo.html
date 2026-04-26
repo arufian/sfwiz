@@ -1,0 +1,16 @@
+<template>
+  <lightning-card title="sfwiz Demo" icon-name="utility:toggle">
+    <div class="slds-p-around_medium">
+      <lightning-input
+        type="toggle"
+        label="Toggle Demo"
+        name="toggleInput"
+        checked={isToggled}
+        onchange={handleToggle}
+      ></lightning-input>
+      <div class="slds-p-top_medium">
+        <p>Toggle is: <strong>{toggleStatus}</strong></p>
+      </div>
+    </div>
+  </lightning-card>
+</template>

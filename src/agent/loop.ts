@@ -16,6 +16,10 @@ import type { Tool, ToolContext } from '~/tools/types';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const MAX_TOOL_ROUNDS = 20; // guard against infinite loops
+// Cross-turn cap on identical (tool, args) calls. After this many repeats the
+// loop short-circuits with a directive error so the model stops retrying the
+// same write_file/sf_deploy_start churn after a deploy failure.
+const REPEAT_CALL_LIMIT = 3;
 
 export interface AgentLoopOptions {
   systemPrompt: string;
@@ -52,6 +56,7 @@ export class AgentLoop extends EventEmitter {
   ) => Promise<boolean>;
   private readonly maxToolRounds: number;
   private readonly thinkingMode: boolean;
+  private readonly toolCallCounts = new Map<string, number>();
   readonly tokenTracker = new TokenTracker();
 
   constructor(opts: AgentLoopOptions) {
@@ -231,6 +236,28 @@ export class AgentLoop extends EventEmitter {
         try {
           parsedInput = JSON.parse(tc.input || '{}') as Record<string, unknown>;
         } catch {}
+
+        // Repeat-call guard: ask_user is exempt (same prompt may legitimately
+        // re-fire). Other tools blocked after REPEAT_CALL_LIMIT identical calls.
+        if (tc.name !== 'ask_user') {
+          const sig = `${tc.name}::${tc.input || '{}'}`;
+          const prev = this.toolCallCounts.get(sig) ?? 0;
+          if (prev >= REPEAT_CALL_LIMIT) {
+            const msg = `Repeated identical ${tc.name} call blocked after ${prev} attempts`;
+            this.emit('tool:error', tc.id, tc.name, msg);
+            toolResultContent.push({
+              type: 'tool_result',
+              tool_use_id: tc.id,
+              content:
+                `Error: ${msg}. You have already invoked ${tc.name} with identical ` +
+                `arguments ${prev} times. Stop retrying. Call ask_user to ask the ` +
+                `user how to proceed (e.g. abort, change inputs, or skip this step) ` +
+                `before attempting any further tool call.`,
+            });
+            continue;
+          }
+          this.toolCallCounts.set(sig, prev + 1);
+        }
 
         // Destructive-op gate: hard-block destructive SF ops without a recent
         // non-cancelled ask_user confirmation. Locked rule (phase-1 §locked-decisions).

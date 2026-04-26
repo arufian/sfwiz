@@ -149,6 +149,44 @@ describe('AgentLoop — tool schema forwarding (H2 guard)', () => {
     expect(events[events.length - 1]).toBe('done');
   });
 
+  test('repeat-call guard short-circuits identical tool calls after limit', async () => {
+    // Mock fetch returns echo({message:"x"}) on every request — same args, forever.
+    let executions = 0;
+    const repeatTool: Tool = {
+      name: 'echo',
+      description: 'echo',
+      parameters: z.object({ message: z.string() }),
+      async execute() {
+        executions++;
+        return { ok: true };
+      },
+    };
+
+    const mockFetch = async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const body = JSON.parse((init?.body ?? '{}') as string) as MessageCreateParamsStreaming;
+      const lastMsg = body.messages[body.messages.length - 1];
+      const hasErrorResult =
+        Array.isArray(lastMsg?.content) &&
+        (lastMsg.content as Array<{ type: string; content?: string }>).some(
+          (c) => c.type === 'tool_result' && c.content?.startsWith('Error: Repeated identical'),
+        );
+      if (hasErrorResult) return makeTextResponse('stopping');
+      return makeToolResponse('echo', { message: 'same' }, `call_${Math.random()}`);
+    };
+
+    const client = new Anthropic({ apiKey: 'sk-ant-test', fetch: mockFetch as typeof fetch });
+    const loop = new AgentLoop({ systemPrompt: 't', tools: [repeatTool], client });
+
+    const errors: string[] = [];
+    loop.on('tool:error', (_id, _name, msg) => errors.push(msg));
+
+    await loop.run([{ role: 'user', content: 'go' }]);
+
+    // First REPEAT_CALL_LIMIT (3) calls execute, the next is short-circuited.
+    expect(executions).toBe(3);
+    expect(errors.some((m) => m.includes('Repeated identical'))).toBe(true);
+  });
+
   test('AbortController aborts the loop', async () => {
     const ac = new AbortController();
     const client = new Anthropic({
