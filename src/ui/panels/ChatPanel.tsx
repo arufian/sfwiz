@@ -13,17 +13,17 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// 2D wand spinning clockwise: 8 frames × 3 rows × 9 cols, 80ms/frame = 640ms loop
-// Body ══ thick, head ● small, ✦ leads the tip
+// Body ══ fixed at row 1 cols 0-1. Head ● orbits clockwise around wand tip.
+// 3 rows × 9 cols, 8 frames × 80ms = 640ms loop
 const WAND_FRAMES_2D = [
-  ['         ', '   ══●✦  ', '         '],  // → 3 o'clock
-  ['    ═    ', '     ╲   ', '      ●✦ '],  // ↘ 4:30
-  ['    ═    ', '    │    ', '    ●    '],  // ↓ 6 o'clock
-  ['      ═  ', '     ╱   ', '   ✦●    '],  // ↙ 7:30
-  ['         ', '  ✦●══   ', '         '],  // ← 9 o'clock
-  ['  ✦●     ', '    ╲    ', '     ═   '],  // ↖ 10:30
-  ['    ●    ', '    │    ', '    ═    '],  // ↑ 12 o'clock
-  ['     ●✦  ', '    ╱    ', '   ═     '],  // ↗ 1:30
+  ['         ', '══   ●✦  ', '         '],  // → 3 o'clock
+  ['         ', '══       ', '      ●  '],  // ↘ 4:30
+  ['         ', '══       ', '    ●    '],  // ↓ 6 o'clock
+  ['         ', '══       ', '  ●      '],  // ↙ 7:30
+  ['         ', '══●      ', '         '],  // ← 9 o'clock (head touches body)
+  ['  ●      ', '══       ', '         '],  // ↖ 10:30
+  ['    ●✦   ', '══       ', '         '],  // ↑ 12 o'clock
+  ['      ●  ', '══    ✦  ', '         '],  // ↗ 1:30
 ] as const;
 
 function WandAnimation() {
