@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { AuthInfo } from '@salesforce/core';
 import { parseSfOrgList } from '~/sf/orgs';
 
 export interface OrgEntry {
@@ -12,10 +11,10 @@ export interface OrgEntry {
   connectedStatus: string;
 }
 
-/** Async spawn `sf org list --json`, return raw stdout or null on failure. */
-function runSfOrgList(timeoutMs = 30_000): Promise<string | null> {
+/** Async spawn an sf command, return raw stdout or null on failure. */
+function runSfCmd(args: string[], timeoutMs = 30_000): Promise<string | null> {
   return new Promise((resolve) => {
-    const child = spawn('sf', ['org', 'list', '--json'], { env: process.env });
+    const child = spawn('sf', args, { env: process.env });
     let stdout = '';
     let settled = false;
     const finish = (val: string | null) => {
@@ -30,9 +29,7 @@ function runSfOrgList(timeoutMs = 30_000): Promise<string | null> {
     child.on('close', (code) => finish(code === 0 || stdout.trim() ? stdout : null));
     setTimeout(() => {
       if (!settled) {
-        try {
-          child.kill('SIGKILL');
-        } catch {}
+        try { child.kill('SIGKILL'); } catch {}
         finish(null);
       }
     }, timeoutMs).unref?.();
@@ -49,19 +46,34 @@ function runSfOrgList(timeoutMs = 30_000): Promise<string | null> {
  * `sf` credentials anyway, so we rely on it.
  */
 export async function listOrgs(): Promise<OrgEntry[]> {
-  const out = await runSfOrgList();
+  const out = await runSfCmd(['org', 'list', '--json']);
   if (!out) return [];
   return parseSfOrgList(out);
 }
 
-/** Get connection fields (instanceUrl + accessToken) for a username/alias. */
+/**
+ * Get connection fields (instanceUrl + accessToken) for a username/alias.
+ *
+ * Uses `sf org display --json` instead of `@salesforce/core` AuthInfo.create
+ * because AuthInfo has a config-store path mismatch in the bundled binary
+ * (same issue as AuthInfo.listAllAuthorizations — see listOrgs comment above).
+ */
 export async function getConnection(
   usernameOrAlias: string,
 ): Promise<{ instanceUrl: string; accessToken: string }> {
-  const authInfo = await AuthInfo.create({ username: usernameOrAlias });
-  const fields = authInfo.getFields(true);
-  return {
-    instanceUrl: fields.instanceUrl ?? '',
-    accessToken: fields.accessToken ?? '',
-  };
+  const out = await runSfCmd(['org', 'display', '--target-org', usernameOrAlias, '--json']);
+  if (!out) throw new Error(`sf org display failed for "${usernameOrAlias}"`);
+
+  let parsed: { result?: { instanceUrl?: string; accessToken?: string } };
+  try {
+    parsed = JSON.parse(out) as typeof parsed;
+  } catch {
+    throw new Error(`sf org display returned invalid JSON for "${usernameOrAlias}"`);
+  }
+
+  const instanceUrl = parsed.result?.instanceUrl ?? '';
+  const accessToken = parsed.result?.accessToken ?? '';
+  if (!accessToken) throw new Error(`No access token for "${usernameOrAlias}". Re-authenticate with sf login web.`);
+
+  return { instanceUrl, accessToken };
 }
