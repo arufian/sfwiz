@@ -13,34 +13,6 @@ function pickTip(): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Body ══ fixed at row 1 cols 0-1. Head ● orbits clockwise around wand tip.
-// 3 rows × 9 cols, 8 frames × 80ms = 640ms loop
-const WAND_FRAMES_2D = [
-  ['         ', '══   ●✦  ', '         '],  // → 3 o'clock
-  ['         ', '══       ', '      ●  '],  // ↘ 4:30
-  ['         ', '══       ', '    ●    '],  // ↓ 6 o'clock
-  ['         ', '══       ', '  ●      '],  // ↙ 7:30
-  ['         ', '══●      ', '         '],  // ← 9 o'clock (head touches body)
-  ['  ●      ', '══       ', '         '],  // ↖ 10:30
-  ['    ●✦   ', '══       ', '         '],  // ↑ 12 o'clock
-  ['      ●  ', '══    ✦  ', '         '],  // ↗ 1:30
-] as const;
-
-function WandAnimation() {
-  const [frame, setFrame] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % WAND_FRAMES_2D.length), 80);
-    return () => clearInterval(id);
-  }, []);
-  const rows = WAND_FRAMES_2D[frame]!;
-  return (
-    <box style={{ flexDirection: 'column', marginLeft: 2 }}>
-      {rows.map((row, i) => (
-        <text key={i} content={row} style={{ fg: ACCENT }} />
-      ))}
-    </box>
-  );
-}
 
 export function Equalizer({
   color = INFLIGHT,
@@ -189,7 +161,9 @@ function ChatBlocks({
                 <text content="▍ " style={{ fg: INFLIGHT }} />
                 <text content={`thinking… ${b.elapsedS}s`} style={{ fg: DIM }} />
               </box>
-              <WandAnimation />
+              <box style={{ marginLeft: 2 }}>
+                <Equalizer color={INFLIGHT} />
+              </box>
             </box>
           );
         }
@@ -201,7 +175,9 @@ function ChatBlocks({
                 <text content="▍ " style={{ fg: INFLIGHT }} />
                 <text content={`${b.label}${dots} ${b.elapsedS}s`} style={{ fg: DIM }} />
               </box>
-              <WandAnimation />
+              <box style={{ marginLeft: 2 }}>
+                <Equalizer color={INFLIGHT} />
+              </box>
             </box>
           );
         }
