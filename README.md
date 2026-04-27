@@ -25,15 +25,39 @@
 - **Prompt caching**: 4-breakpoint strategy — system block, last tool-def, stable history prefix, last assistant turn.
 - **Safety**: destructive Salesforce ops (`sf_deploy_start` / `sf_scratch_create` / `sf_assign_permset`) are runtime-gated behind a mandatory `ask_user` confirmation regardless of permission mode.
 
-> **Status:** bug-fix pass in progress — not user-ready. Build from source at your own risk.
+> **Status:** hackathon submission build (v0.1.0). Round-2 E2E PASS — see `E2E-Test-Result.MD`.
 
 ## Quickstart
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) 1.1+
 - [Salesforce CLI (`sf`)](https://developer.salesforce.com/tools/salesforcecli) logged in (`sf login web`)
 - An Anthropic API key (set inside the TUI — see below)
+- For source builds: [Bun](https://bun.sh) 1.1+
+
+### Run from release binary (macOS Apple Silicon)
+
+```bash
+# Download + verify checksum
+curl -L -o sfwiz https://github.com/arufian/sfwiz/releases/download/v0.1.0/sfwiz-darwin-arm64
+curl -L -O https://github.com/arufian/sfwiz/releases/download/v0.1.0/sfwiz-darwin-arm64.sha256
+mv sfwiz sfwiz-darwin-arm64
+shasum -a 256 -c sfwiz-darwin-arm64.sha256
+
+# Make executable + launch
+mv sfwiz-darwin-arm64 sfwiz
+chmod +x sfwiz
+./sfwiz --first-run
+```
+
+Optional — install globally:
+
+```bash
+sudo mv sfwiz /usr/local/bin/sfwiz
+sfwiz --first-run
+```
+
+> Only `darwin-arm64` ships as a prebuilt binary (Bun cross-compile is blocked by `@opentui/core` dynamic-import resolution). Other platforms must build from source.
 
 ### Run from source
 
