@@ -7,6 +7,9 @@ dist/
 docs/internal/
 progress.md
 
+# local project plans (not for public repo)
+.claude/
+
 # Phase-6 video pipeline (private — drafts, VO, renders, voice samples)
 demo/
 
