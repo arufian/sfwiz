@@ -806,17 +806,15 @@ export function App({
         } catch {}
       }
     };
+    const onSigint = () => { saveOnExit(); process.exit(0); };
+    const onSigterm = () => { saveOnExit(); process.exit(0); };
     process.on('exit', saveOnExit);
-    process.on('SIGINT', () => {
-      saveOnExit();
-      process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      saveOnExit();
-      process.exit(0);
-    });
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
     return () => {
       process.off('exit', saveOnExit);
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigterm);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd]);

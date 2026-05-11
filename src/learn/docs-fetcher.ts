@@ -3,7 +3,7 @@
  * Downloads SF docs pages → markdown files in the collection dirs.
  * Rate-limited to 1 rps per host. Uses ETag/Last-Modified caching.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { KNOWLEDGE_DIR } from '~/knowledge/collections';
 
@@ -205,7 +205,6 @@ export function collectionHasDocs(collection: string): boolean {
   const dir = join(KNOWLEDGE_DIR, collection);
   if (!existsSync(dir)) return false;
   try {
-    const { readdirSync } = require('fs') as typeof import('fs');
     return readdirSync(dir).some((f: string) => f.endsWith('.md') && !f.startsWith('.'));
   } catch {
     return false;
