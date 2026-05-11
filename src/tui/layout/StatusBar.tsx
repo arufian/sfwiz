@@ -14,6 +14,7 @@ type PermissionMode = 'ask' | 'auto-edit' | 'yolo';
 
 export interface StatusBarProps {
   org: { alias: string; status: 'connected' | 'disconnected' } | null;
+  orgConnecting?: boolean;
   modelName: string | null;
   tokens: { used: number; estimatedCostUsd: number } | null;
   mode: PermissionMode;
@@ -40,7 +41,7 @@ function clockHHMM(): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function StatusBar({ org, modelName, tokens, mode, qmdInstalled, embedsDone }: StatusBarProps) {
+export function StatusBar({ org, orgConnecting, modelName, tokens, mode, qmdInstalled, embedsDone }: StatusBarProps) {
   const [embedPct, setEmbedPct] = useState<number | null>(null);
   const [clock, setClock] = useState(clockHHMM());
 
@@ -92,6 +93,8 @@ export function StatusBar({ org, modelName, tokens, mode, qmdInstalled, embedsDo
     >
       {org ? (
         <text content={org.alias} style={{ fg: org.status === 'connected' ? OK : ERR }} />
+      ) : orgConnecting ? (
+        <text content="connecting…" style={{ fg: INFLIGHT }} />
       ) : (
         <text content="no org" style={{ fg: DIM }} />
       )}

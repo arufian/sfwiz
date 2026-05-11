@@ -1,7 +1,7 @@
 import { homedir } from 'os';
 import { join } from 'path';
-import type { TextareaRenderable } from '@opentui/core';
-import { useKeyboard, useTerminalDimensions } from '@opentui/react';
+import { CliRenderEvents, type TextareaRenderable } from '@opentui/core';
+import { useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react';
 /** @jsxImportSource @opentui/react */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -65,6 +65,7 @@ import { QmdScreen, type QmdSubPhase } from '~/tui/setup/QmdScreen';
 import { SetupChrome } from '~/tui/setup/SetupChrome';
 import { getBgColor } from '~/ui/theme';
 import { fuzzyFilter } from '~/util/fuzzy';
+import { copyToClipboard } from '~/util/clipboard';
 
 import type { ChatBlock, PermissionMode, SideView } from '~/types/ui';
 import { PERMISSION_MODES } from '~/types/ui';
@@ -161,6 +162,26 @@ function shortDoneSummary(toolName: string, result: unknown): string {
   return 'done';
 }
 
+function inferMetadataTypeFromPath(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.includes('/classes/')) return 'ApexClass';
+  if (lower.includes('/triggers/')) return 'ApexTrigger';
+  if (lower.includes('/lwc/')) return 'LightningComponentBundle';
+  if (lower.includes('/aura/')) return 'AuraDefinitionBundle';
+  if (lower.includes('/flows/')) return 'Flow';
+  if (lower.includes('/objects/')) return 'CustomObject';
+  if (lower.includes('/permissionsets/')) return 'PermissionSet';
+  if (lower.includes('/profiles/')) return 'Profile';
+  if (lower.includes('/layouts/')) return 'Layout';
+  if (lower.includes('/tabs/')) return 'CustomTab';
+  if (lower.includes('/labels/')) return 'CustomLabels';
+  if (lower.includes('/staticresources/')) return 'StaticResource';
+  if (lower.includes('/flexipages/')) return 'FlexiPage';
+  if (lower.includes('/experiences/')) return 'ExperienceBundle';
+  if (lower.includes('/approvalprocesses/')) return 'ApprovalProcess';
+  return 'Unknown';
+}
+
 function safeParseJson(s: unknown): unknown {
   if (typeof s !== 'string') return s;
   try {
@@ -173,8 +194,19 @@ function safeParseJson(s: unknown): unknown {
 function parseDeployResult(result: unknown): DeployData | null {
   const obj = safeParseJson(result);
   if (!obj || typeof obj !== 'object') return null;
-  const r = obj as Record<string, unknown>;
-  const status = (r.status as string | undefined) ?? (r.success === true ? 'success' : 'failed');
+  const envelope = obj as Record<string, unknown>;
+  // sf --json wraps the real payload in `result`.
+  const r =
+    envelope.result && typeof envelope.result === 'object'
+      ? (envelope.result as Record<string, unknown>)
+      : envelope;
+  const rawStatus = (r.status as string | undefined) ?? '';
+  const status =
+    rawStatus === 'Succeeded' || rawStatus === 'success' || r.success === true
+      ? 'success'
+      : rawStatus === 'partial'
+        ? 'partial'
+        : 'failed';
   const elapsedMs = typeof r.elapsedMs === 'number' ? r.elapsedMs : 0;
   const errorsRaw = Array.isArray(r.errors) ? r.errors : [];
   const errors = errorsRaw.flatMap((e): { component: string; message: string }[] => {
@@ -299,6 +331,7 @@ export function App({
   forceFirstRun?: boolean;
 }) {
   const { width, height } = useTerminalDimensions();
+  const cliRenderer = useRenderer();
   const cwd = useMemo(() => process.cwd(), []);
   const splashTip = useMemo(() => pickSplashTip(), []);
 
@@ -510,6 +543,8 @@ export function App({
   const [toast, setToast] = useState<string | null>(
     'type a message to start · Ctrl+P for commands',
   );
+  const [copyToastVisible, setCopyToastVisible] = useState(false);
+  const copyToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [blocks, setBlocks] = useState<ChatBlock[]>([]);
   const isSplash = blocks.length === 0;
 
@@ -527,6 +562,9 @@ export function App({
   const sessionIdRef = useRef<string>(newSessionId(cwd));
   const lastPersistedBlockCountRef = useRef<number>(0);
 
+  // Thinking timer: increments elapsedS of the last thinking block every second.
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Live side-panel state (replaces static fixture).
   const [currentModelId, setCurrentModelId] = useState<string | null>(
     () => loadConfig()?.llm.model ?? null,
@@ -537,6 +575,8 @@ export function App({
   });
   const [currentOrg, setCurrentOrg] = useState<OrgSummary | null>(null);
   const [currentOrgHandle, setCurrentOrgHandle] = useState<OrgHandle | null>(null);
+  const currentOrgHandleRef = useRef<OrgHandle | null>(null);
+  const [orgConnecting, setOrgConnecting] = useState(false);
 
   // Side-panel live data (populated from agent tool:done events).
   const [deployData, setDeployData] = useState<DeployData | null>(null);
@@ -545,6 +585,9 @@ export function App({
   const [tokensBreakdown, setTokensBreakdown] = useState<TokensBreakdown | null>(null);
   const [learnWorkerStatus, setLearnWorkerStatus] = useState<string>('idle');
   const [learnWorkerLastRun, setLearnWorkerLastRun] = useState<number | null>(null);
+
+  // Track files touched by agent tools in this session (shown in DirTree).
+  const [touchedFiles, setTouchedFiles] = useState<Map<string, { status: 'new' | 'changed' | 'deleted'; type: string }>>(new Map());
 
   // Toggleable preferences (palette: Thinking Mode / Background Color / Reduced Motion).
   const [thinkingMode, setThinkingMode] = useState<boolean>(
@@ -555,7 +598,30 @@ export function App({
     () => loadConfig()?.tui?.reducedMotion === true,
   );
 
+  // Auto-copy selected text to clipboard when user finishes a drag-select.
+  useEffect(() => {
+    const handler = (selection: unknown) => {
+      if (!selection || typeof selection !== 'object') return;
+      const sel = selection as { isDragging?: boolean; getSelectedText?: () => string };
+      if (sel.isDragging) return; // still dragging — wait for release
+      const text = sel.getSelectedText?.() ?? '';
+      if (!text) return;
+      copyToClipboard(text)
+        .then(() => {
+          if (copyToastTimerRef.current) clearTimeout(copyToastTimerRef.current);
+          setCopyToastVisible(true);
+          copyToastTimerRef.current = setTimeout(() => setCopyToastVisible(false), 2000);
+        })
+        .catch(() => {});
+    };
+    cliRenderer.on(CliRenderEvents.SELECTION, handler);
+    return () => {
+      cliRenderer.off(CliRenderEvents.SELECTION, handler);
+    };
+  }, [cliRenderer]);
+
   const refreshOrg = useCallback(async () => {
+    setOrgConnecting(true);
     try {
       const orgs = await listOrgs();
       const defaultOrg = orgs.find((o) => o.isDefault) ?? orgs[0];
@@ -564,14 +630,17 @@ export function App({
           alias: defaultOrg.alias ?? defaultOrg.username,
           status: defaultOrg.connectedStatus === 'Connected' ? 'connected' : 'disconnected',
         });
-        setCurrentOrgHandle({
+        const handle = {
           alias: defaultOrg.alias ?? defaultOrg.username,
           username: defaultOrg.username,
           instanceUrl: defaultOrg.instanceUrl,
           isProduction: !defaultOrg.instanceUrl.includes('sandbox'),
-        });
+        };
+        currentOrgHandleRef.current = handle;
+        setCurrentOrgHandle(handle);
       }
     } catch {}
+    setOrgConnecting(false);
   }, []);
 
   // --- ask_user bridge ---
@@ -628,8 +697,16 @@ export function App({
     // Reset on turn:thinking (each new round), consumed by turn:stream handler.
     let streamAccum = '';
 
+    const clearThinkingTimer = () => {
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+      }
+    };
+
     loop.on('turn:thinking', () => {
       streamAccum = '';
+      clearThinkingTimer();
       // Multi-round turns can fire turn:thinking many times. Avoid stacking
       // thinking blocks — if the last block is already thinking, leave it.
       setBlocks((bs) => {
@@ -637,6 +714,15 @@ export function App({
         if (last?.kind === 'thinking') return bs;
         return [...bs, { id: crypto.randomUUID(), kind: 'thinking', elapsedS: 0 }];
       });
+      thinkingTimerRef.current = setInterval(() => {
+        setBlocks((bs) => {
+          const last = bs[bs.length - 1];
+          if (last?.kind === 'thinking') {
+            return [...bs.slice(0, -1), { ...last, elapsedS: last.elapsedS + 1 }];
+          }
+          return bs;
+        });
+      }, 1000);
     });
 
     // Emit progressive text deltas into the chat block. Converts the current
@@ -645,6 +731,7 @@ export function App({
     loop.on('turn:stream', (delta) => {
       streamAccum += delta;
       const text = streamAccum;
+      clearThinkingTimer();
       setBlocks((bs) => {
         const last = bs[bs.length - 1];
         if (last?.kind === 'thinking') {
@@ -659,6 +746,7 @@ export function App({
 
     loop.on('turn:done', (finalText, fullMessages) => {
       setIsRunning(false);
+      clearThinkingTimer();
       // Replace entire conversation history with the full messages array from
       // the loop — this includes all tool_use and tool_result rounds that were
       // previously missing from conversationHistoryRef on subsequent user turns.
@@ -695,27 +783,49 @@ export function App({
     loop.on('tool:pending', (callId, toolName, input) => {
       const summary = friendlyToolSummary(toolName, input);
       toolInputsRef.current.set(callId, input);
-      // Drop any trailing thinking residue — the model has committed to a tool
-      // call, so the "thinking…" indicator has served its purpose.
-      setBlocks((bs) => {
-        const trimmed = bs[bs.length - 1]?.kind === 'thinking' ? bs.slice(0, -1) : bs;
-        return [
-          ...trimmed,
-          { id: callId, kind: 'tool', name: toolName, status: 'running', summary },
-        ];
-      });
+      // Keep the thinking block alive — the agent is still working.
+      setBlocks((bs) => [
+        ...bs,
+        { id: callId, kind: 'tool', name: toolName, status: 'running', summary },
+      ]);
     });
 
     loop.on('tool:done', (callId, toolName, result) => {
       const summary = shortDoneSummary(toolName, result);
       const input = toolInputsRef.current.get(callId);
       toolInputsRef.current.delete(callId);
+      // Track files touched by write_file / edit_file for the DirTree.
+      if (toolName === 'write_file' || toolName === 'edit_file') {
+        let path = '';
+        if (input && typeof input === 'string') {
+          try {
+            const parsed = JSON.parse(input) as Record<string, unknown>;
+            path = typeof parsed.path === 'string' ? parsed.path : '';
+          } catch {}
+        } else if (input && typeof input === 'object') {
+          path = (input as Record<string, unknown>).path as string;
+        }
+        if (path) {
+          setTouchedFiles((prev) => {
+            const next = new Map(prev);
+            next.set(path, {
+              status: toolName === 'write_file' ? 'new' : 'changed',
+              type: inferMetadataTypeFromPath(path),
+            });
+            return next;
+          });
+        }
+      }
       // Route known tool results into the side panels.
       if (toolName === 'sf_deploy_start') {
         const d = parseDeployResult(result);
         if (d) {
           setDeployData(d);
           setSideView('deploy');
+          // Clear touched files on successful deploy.
+          if (d.status === 'success') {
+            setTouchedFiles(new Map());
+          }
         }
       } else if (toolName === 'sf_run_tests') {
         const t = parseTestsResult(result);
@@ -1306,12 +1416,14 @@ export function App({
           stopLoad();
           if (result.connected && result.alias) {
             setCurrentOrg({ alias: result.alias, status: 'connected' });
-            setCurrentOrgHandle({
+            const newHandle = {
               alias: result.alias,
               username: result.username ?? result.alias,
               instanceUrl: result.instanceUrl ?? '',
               isProduction: !(result.instanceUrl ?? '').includes('sandbox'),
-            });
+            };
+            currentOrgHandleRef.current = newHandle;
+            setCurrentOrgHandle(newHandle);
           } else if (result.connected) {
             void refreshOrg();
           }
@@ -1328,7 +1440,7 @@ export function App({
             },
           ]);
         } else if (cmd.handler === 'open-org') {
-          const targetOrg = currentOrgHandle?.alias ?? currentOrgHandle?.username;
+          const targetOrg = currentOrgHandleRef.current?.alias ?? currentOrgHandleRef.current?.username;
           if (!targetOrg) {
             setBlocks((bs) => [
               ...bs,
@@ -1340,18 +1452,31 @@ export function App({
             ]);
           } else {
             const { spawnSync } = await import('child_process');
-            spawnSync('sf', ['org', 'open', '--target-org', targetOrg], {
+            const result = spawnSync('sf', ['org', 'open', '--target-org', targetOrg], {
               encoding: 'utf8',
               timeout: 30_000,
+              stdio: 'inherit',
             });
-            setBlocks((bs) => [
-              ...bs,
-              {
-                id: crypto.randomUUID(),
-                kind: 'assistant',
-                text: `Opened **${targetOrg}** in browser.`,
-              },
-            ]);
+            if (result.status !== 0) {
+              const err = result.error?.message ?? result.stderr?.trim() ?? 'unknown error';
+              setBlocks((bs) => [
+                ...bs,
+                {
+                  id: crypto.randomUUID(),
+                  kind: 'assistant',
+                  text: `Failed to open **${targetOrg}**: ${err}`,
+                },
+              ]);
+            } else {
+              setBlocks((bs) => [
+                ...bs,
+                {
+                  id: crypto.randomUUID(),
+                  kind: 'assistant',
+                  text: `Opened **${targetOrg}** in browser.`,
+                },
+              ]);
+            }
           }
         } else if (cmd.handler === 'learn') {
           const answer = await askUser({
@@ -1824,6 +1949,7 @@ export function App({
     >
       <LiveStatusBar
         org={currentOrg}
+        orgConnecting={orgConnecting}
         modelName={modelSummaryFromId(currentModelId)?.name ?? null}
         tokens={tokens.used > 0 ? tokens : null}
         mode={mode}
@@ -1837,7 +1963,7 @@ export function App({
         </box>
       ) : (
         <box style={{ flexDirection: 'row', flexGrow: 1 }}>
-          {treeOpen ? <DirTree projectRoot={cwd} org={currentOrgHandle} /> : null}
+          {treeOpen ? <DirTree projectRoot={cwd} org={currentOrgHandle} touchedFiles={touchedFiles} /> : null}
           <ChatPanel
             blocks={blocks}
             onToggleTool={(id) =>
@@ -1853,6 +1979,23 @@ export function App({
       )}
       {toast ? <ToastBar msg={toast} /> : null}
       <InputLine inputRef={inputRef} focused={!inputDisabled} onSubmit={handleSubmit} />
+
+      {/* Copy-to-clipboard floating toast — top-right, auto-dismisses after 2s */}
+      {copyToastVisible ? (
+        <box
+          style={{
+            position: 'absolute',
+            top: 1,
+            left: width - 26,
+            flexDirection: 'row',
+            backgroundColor: '#1a3a2a',
+            paddingLeft: 1,
+            paddingRight: 1,
+          }}
+        >
+          <text style={{ bg: '#1a3a2a', fg: '#7ec699' }}>{'✓ copied to clipboard'}</text>
+        </box>
+      ) : null}
 
       {/* API key setup — shown before anything else if key is missing */}
       {!apiKeyReady ? (
