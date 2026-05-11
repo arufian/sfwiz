@@ -14,6 +14,7 @@ export function HelpOverlay() {
     ['/ (at empty input)', 'open command palette'],
     ['Ctrl+P', 'command palette'],
     ['Ctrl+Click tool', 'expand/collapse tool block'],
+    ['drag to select', 'auto-copy selection to clipboard'],
     ['Ctrl+H', 'this help'],
     ['Ctrl+C / Ctrl+Q', 'quit'],
   ];

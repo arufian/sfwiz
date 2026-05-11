@@ -182,6 +182,8 @@ export function MarkdownLine({ line }: { line: string }) {
                 (s.bold ? TextAttributes.BOLD : 0) |
                 (s.italic ? TextAttributes.ITALIC : 0) |
                 (headingBold ?? 0),
+              selectionBg: '#2a4a7f',
+              selectionFg: '#ffffff',
             }}
           />
         </Fragment>

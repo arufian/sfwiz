@@ -1,5 +1,6 @@
+import type { ScrollBoxRenderable } from '@opentui/core';
 import { TextAttributes } from '@opentui/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CAPABILITY_HINTS, SPLASH_TIPS } from '~/fixtures/misc';
 import type { ChatBlock } from '~/types/ui';
 import { ACCENT, BORDER, DIM, ERR, INFLIGHT, OK, WARN } from '~/ui/theme';
@@ -132,7 +133,7 @@ function ChatBlocks({
               }}
             >
               <text content="❯ " style={{ bg: '#0d2a33', fg: ACCENT }} />
-              <text content={b.text} style={{ bg: '#0d2a33' }} />
+              <text content={b.text} style={{ bg: '#0d2a33', selectionBg: '#2a4a7f', selectionFg: '#ffffff' }} />
             </box>
           );
         }
@@ -295,8 +296,21 @@ export function ChatPanel({
   blocks: ChatBlock[];
   onToggleTool?: (id: string) => void;
 }) {
+  const scrollRef = useRef<ScrollBoxRenderable | null>(null);
+
+  useEffect(() => {
+    const sb = scrollRef.current;
+    if (!sb) return;
+    // Defer so the layout has updated before we measure scrollHeight.
+    const id = setTimeout(() => {
+      sb.scrollTop = sb.scrollHeight;
+    }, 0);
+    return () => clearTimeout(id);
+  }, [blocks.length]);
+
   return (
     <scrollbox
+      ref={scrollRef}
       style={{
         rootOptions: { backgroundColor: 'transparent' },
         viewportOptions: { backgroundColor: 'transparent' },

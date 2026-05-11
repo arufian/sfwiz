@@ -16,6 +16,7 @@ export interface DirTreeProps {
   projectRoot: string;
   org: OrgHandle | null;
   onEvent?: (ev: DirTreeEvent) => void;
+  touchedFiles?: Map<string, { status: 'new' | 'changed' | 'deleted'; type: string }>;
 }
 
 // ── Sync-state symbols (match PoC spec) ──────────────────────────────────────
@@ -59,14 +60,29 @@ function groupFiles(files: TrackedFile[]): Map<string, TrackedFile[]> {
 const BORDER = '#30363d';
 const DIM = '#7d8590';
 
-export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
+function mergeTouchedWithTracked(
+  tracked: TrackedFile[],
+  touched: Map<string, { status: 'new' | 'changed' | 'deleted'; type: string }>,
+): TrackedFile[] {
+  const map = new Map<string, TrackedFile>();
+  for (const f of tracked) map.set(f.path, f);
+  for (const [path, meta] of touched) {
+    map.set(path, { path, status: meta.status, type: meta.type });
+  }
+  return [...map.values()];
+}
+
+export function DirTree({ projectRoot, org, onEvent, touchedFiles }: DirTreeProps) {
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [selected, setSelected] = useState(0);
   const [watcher, setWatcher] = useState<FSWatcher | null>(null);
   const throttledRefreshRef = useRef<ReturnType<typeof throttle> | null>(null);
 
   const refresh = useCallback(() => {
-    if (!org) return;
+    if (!org) {
+      setFiles([]);
+      return;
+    }
     const tracked = getSourceTrackingStatus(projectRoot, org.username);
     setFiles(tracked);
   }, [projectRoot, org]);
@@ -89,36 +105,21 @@ export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
 
   void watcher;
 
+  // Merge source-tracking with session-touched files.
+  const allFiles = mergeTouchedWithTracked(files, touchedFiles ?? new Map());
+
   const handleKey = useCallback((key: string) => {
     if (key === 'r') refresh();
-    if (key === 'd' && files[selected]) onEvent?.({ kind: 'deploy', path: files[selected]!.path });
-    if (key === ' ' && files[selected]) onEvent?.({ kind: 'select', path: files[selected]!.path });
-    if (key === 'ArrowDown') setSelected((s) => Math.min(s + 1, files.length - 1));
+    if (key === 'd' && allFiles[selected]) onEvent?.({ kind: 'deploy', path: allFiles[selected]!.path });
+    if (key === ' ' && allFiles[selected]) onEvent?.({ kind: 'select', path: allFiles[selected]!.path });
+    if (key === 'ArrowDown') setSelected((s) => Math.min(s + 1, allFiles.length - 1));
     if (key === 'ArrowUp') setSelected((s) => Math.max(s - 1, 0));
-  }, [files, selected, refresh, onEvent]);
+  }, [allFiles, selected, refresh, onEvent]);
 
   void handleKey;
 
-  if (!org) {
-    return (
-      <box
-        style={{
-          border: true,
-          borderColor: BORDER,
-          width: 30,
-          paddingLeft: 1,
-          paddingRight: 1,
-          flexDirection: 'column',
-        }}
-      >
-        <text content="tree" />
-        <text content=" no org selected" style={{ fg: DIM }} />
-      </box>
-    );
-  }
-
-  const groups = groupFiles(files);
-  const dirtyCount = files.filter(
+  const groups = groupFiles(allFiles);
+  const dirtyCount = allFiles.filter(
     (f) => f.status === 'changed' || f.status === 'new' || f.status === 'deleted' || f.status === 'conflict',
   ).length;
 
@@ -143,7 +144,7 @@ export function DirTree({ projectRoot, org, onEvent }: DirTreeProps) {
           <text content=" · clean" style={{ fg: '#3fb950' }} />
         )}
       </box>
-      {files.length === 0 ? (
+      {allFiles.length === 0 ? (
         <text content=" no tracked changes" style={{ fg: DIM }} />
       ) : null}
       {[...groups.entries()].map(([group, items]) => (

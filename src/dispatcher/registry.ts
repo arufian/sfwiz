@@ -14,6 +14,7 @@ export const COMMAND_REGISTRY: DispatcherCommand[] = [
   { name: '/history', description: 'Browse all sessions and resume one', handler: 'history' },
   { name: '/sessions', description: 'List all saved sessions', handler: 'sessions' },
   { name: '/open-org', description: 'Open the active Salesforce org in the browser', handler: 'open-org' },
+  { name: '/provider', description: 'Switch LLM provider / re-enter API key', aliases: ['/api-key'], handler: 'provider' },
   { name: '/model', description: 'Switch active LLM model', handler: 'model' },
   { name: '/help', description: 'Show keybindings and commands', handler: 'help' },
   { name: '/quit', description: 'Exit sfwiz', aliases: ['/exit'], handler: 'quit' },

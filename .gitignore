@@ -13,9 +13,6 @@ progress.md
 # Phase-6 video pipeline (private — drafts, VO, renders, voice samples)
 demo/
 
-# local user state (runtime)
-~/.sfwiz/
-
 # E2E artifacts contain real org aliases / emails — never commit
 artifacts/
 temp/
