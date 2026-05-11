@@ -602,11 +602,10 @@ export function App({
   // Latest permission mode in a ref so AgentLoop sees up-to-date value across renders.
   const modeRef = useRef<PermissionMode>('ask');
 
-  // --- Create AgentLoop when API key is ready or permission mode changes ---
+  // --- Create AgentLoop once when API key + cwd are ready ---
   useEffect(() => {
     if (!apiKeyReady) return;
 
-    modeRef.current = mode;
     const cfgForLoop = loadConfig();
     const loop = new AgentLoop({
       systemPrompt: SYSTEM_PROMPT,
@@ -764,7 +763,21 @@ export function App({
       loop.abort();
       loopRef.current = null;
     };
-  }, [apiKeyReady, cwd, askUser, mode, promptPermission, currentModelId, thinkingMode]);
+  }, [apiKeyReady, cwd, askUser, promptPermission]);
+
+  // Keep loop config in sync when mode / model / thinkingMode change without recreating the loop.
+  useEffect(() => {
+    modeRef.current = mode;
+    loopRef.current?.updateConfig({ permissionMode: mode });
+  }, [mode]);
+
+  useEffect(() => {
+    if (currentModelId) loopRef.current?.updateConfig({ model: currentModelId });
+  }, [currentModelId]);
+
+  useEffect(() => {
+    loopRef.current?.updateConfig({ thinkingMode });
+  }, [thinkingMode]);
 
   // Populate sidebar org on launch (shows existing auth without requiring /orgs).
   useEffect(() => {

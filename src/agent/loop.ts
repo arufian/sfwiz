@@ -45,17 +45,18 @@ type EmitArgs<K extends keyof AgentEventMap> = AgentEventMap[K];
 export class AgentLoop extends EventEmitter {
   private readonly systemPrompt: string;
   private readonly tools: Tool[];
-  private readonly model: string;
+  private model: string;
   private ctx: Partial<ToolContext>;
   private readonly abortController: AbortController;
   private readonly client: Anthropic;
-  private readonly permGuard: PermissionModeGuard;
+  private permGuard: PermissionModeGuard;
   private readonly onPermissionPrompt: (
     toolName: string,
     args: Record<string, unknown>,
   ) => Promise<boolean>;
   private readonly maxToolRounds: number;
-  private readonly thinkingMode: boolean;
+  private thinkingMode: boolean;
+  private readonly cwd: string;
   private readonly toolCallCounts = new Map<string, number>();
   readonly tokenTracker = new TokenTracker();
 
@@ -67,13 +68,22 @@ export class AgentLoop extends EventEmitter {
     this.ctx = opts.ctx ?? {};
     this.abortController = opts.abortController ?? new AbortController();
     this.client = opts.client ?? getAnthropicClient();
+    this.cwd = opts.cwd ?? process.cwd();
     this.permGuard = new PermissionModeGuard(
       opts.permissionMode ?? 'ask',
-      opts.cwd ?? process.cwd(),
+      this.cwd,
     );
     this.onPermissionPrompt = opts.onPermissionPrompt ?? (async () => false);
     this.maxToolRounds = opts.maxToolRoundsPerTurn ?? MAX_TOOL_ROUNDS;
     this.thinkingMode = opts.thinkingMode ?? false;
+  }
+
+  updateConfig(opts: { model?: string; permissionMode?: PermissionMode; thinkingMode?: boolean }): void {
+    if (opts.model !== undefined) this.model = opts.model;
+    if (opts.thinkingMode !== undefined) this.thinkingMode = opts.thinkingMode;
+    if (opts.permissionMode !== undefined) {
+      this.permGuard = new PermissionModeGuard(opts.permissionMode, this.cwd);
+    }
   }
 
   override emit<K extends keyof AgentEventMap>(event: K, ...args: EmitArgs<K>): boolean {
