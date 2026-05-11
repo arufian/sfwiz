@@ -4,12 +4,13 @@ export const PermissionMode = z.enum(['ask', 'auto-edit', 'yolo']);
 export type PermissionMode = z.infer<typeof PermissionMode>;
 
 export const LLMConfig = z.object({
-  // v1 = Anthropic only. Multi-provider deferred to v2.
-  provider: z.literal('anthropic'),
+  provider: z.enum(['anthropic', 'openai', 'google']).default('anthropic'),
   model: z.string(),
   apiKeyEnv: z.string().default('ANTHROPIC_API_KEY'),
-  // API key stored directly (set via TUI setup flow; overrides apiKeyEnv)
+  // Legacy single key (Anthropic). Migrated to apiKeys on first load.
   apiKey: z.string().optional(),
+  // Per-provider API keys keyed by provider id.
+  apiKeys: z.record(z.string(), z.string()).default({}),
 });
 export type LLMConfig = z.infer<typeof LLMConfig>;
 

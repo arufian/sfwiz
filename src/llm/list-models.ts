@@ -1,18 +1,28 @@
 import { getAnthropicClient } from '~/llm/client';
-import { ANTHROPIC_MODELS } from '~/llm/models-catalog';
+import { ANTHROPIC_MODELS, modelsForProvider, type ProviderName } from '~/llm/models-catalog';
 
 export interface ModelChoice {
   id: string;
   displayName: string;
   recommended?: boolean;
+  provider?: ProviderName;
 }
 
 /**
- * Fetch models advertised by the active provider. Anthropic SDK exposes
- * `client.models.list()`. Falls back to the static catalog if the call fails
- * (offline, no key, older SDK, etc).
+ * List available models for the given provider.
+ * For Anthropic, attempts a live API call and falls back to the static catalog.
+ * For OpenAI and Google, returns the static catalog directly.
  */
-export async function listAvailableModels(): Promise<ModelChoice[]> {
+export async function listAvailableModels(provider: ProviderName = 'anthropic'): Promise<ModelChoice[]> {
+  if (provider !== 'anthropic') {
+    return modelsForProvider(provider).map((m) => ({
+      id: m.id,
+      displayName: m.displayName,
+      recommended: m.recommended,
+      provider: m.provider,
+    }));
+  }
+
   try {
     const client = getAnthropicClient();
     const sdkClient = client as unknown as {
@@ -27,6 +37,7 @@ export async function listAvailableModels(): Promise<ModelChoice[]> {
         id: m.id,
         displayName: m.display_name ?? cataloged?.displayName ?? m.id,
         recommended: cataloged?.recommended,
+        provider: 'anthropic' as const,
       };
     });
   } catch {
@@ -34,6 +45,7 @@ export async function listAvailableModels(): Promise<ModelChoice[]> {
       id: m.id,
       displayName: m.displayName,
       recommended: m.recommended,
+      provider: 'anthropic' as const,
     }));
   }
 }

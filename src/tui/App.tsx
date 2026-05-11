@@ -6,7 +6,7 @@ import { useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
-import { AgentLoop } from '~/agent/loop';
+import { AgentLoop, type AgentLoopOptions } from '~/agent/loop';
 import { loadConfig } from '~/config/load';
 import { defaultConfig } from '~/config/load';
 import { saveConfig } from '~/config/save';
@@ -24,7 +24,8 @@ import type {
 } from '~/learn/bus';
 import { initAnthropicClient, resetAnthropicClient, resolveApiKey } from '~/llm/client';
 import { type ModelChoice, listAvailableModels } from '~/llm/list-models';
-import { ANTHROPIC_MODELS, pickDefaultModel } from '~/llm/models-catalog';
+import { ANTHROPIC_MODELS, ALL_MODELS, DEFAULT_MODEL_BY_PROVIDER, pickDefaultModel, type ProviderName } from '~/llm/models-catalog';
+import { getAIModel } from '~/llm/provider';
 import { listOrgs } from '~/sf/auth';
 import type { AskUserPayload, AskUserResult, OrgHandle } from '~/tools/types';
 import type { OrgSummary } from '~/ui/panels/SidePanel';
@@ -107,8 +108,14 @@ const TRUST_PATH = join(homedir(), '.sfwiz', 'trusted-workspaces.json');
 const PERMISSIONS_PATH = join(homedir(), '.sfwiz', 'permissions.json');
 const SIDE_VIEWS: SideView[] = ['persona', 'tests', 'soql', 'knowledge', 'deploy', 'tokens'];
 
-function isValidAnthropicKey(key: string): boolean {
-  return key.startsWith('sk-ant-') || key.startsWith('sk-proj-');
+function isValidApiKey(provider: string, key: string): boolean {
+  if (!key) return false;
+  switch (provider) {
+    case 'anthropic': return key.startsWith('sk-ant-') || key.startsWith('sk-proj-');
+    case 'openai': return key.startsWith('sk-');
+    case 'google': return key.length > 0;
+    default: return key.length > 0;
+  }
 }
 
 /** Reduce restored ChatBlock[] back into MessageParam[] for the agent loop. */
@@ -276,11 +283,9 @@ function modelSummaryFromId(
   id: string | null | undefined,
 ): { provider: string; name: string } | null {
   if (!id) return null;
-  const entry = ANTHROPIC_MODELS.find((m) => m.id === id);
-  // Strip the "Claude " prefix so the side panel reads as "Sonnet 4.6", not
-  // "Claude Sonnet 4.6". Fall back to the raw id if we don't recognise it.
+  const entry = ALL_MODELS.find((m) => m.id === id);
   const name = entry?.displayName.replace(/^Claude\s+/, '') ?? id;
-  return { provider: 'anthropic', name };
+  return { provider: entry?.provider ?? 'anthropic', name };
 }
 
 const SYSTEM_PROMPT = `You are sfwiz, a Salesforce development assistant.
@@ -335,37 +340,57 @@ export function App({
   const cwd = useMemo(() => process.cwd(), []);
   const splashTip = useMemo(() => pickSplashTip(), []);
 
-  // --- API key setup ---
-  const [apiKeyReady, setApiKeyReady] = useState(() => !!resolveApiKey());
+  // --- Provider + API key setup ---
+  const [currentProvider, setCurrentProvider] = useState<ProviderName>(
+    () => (loadConfig()?.llm.provider as ProviderName) ?? 'anthropic',
+  );
+  const [apiKeyReady, setApiKeyReady] = useState(() => {
+    const cfg = loadConfig();
+    const provider = (cfg?.llm.provider as ProviderName) ?? 'anthropic';
+    const key = cfg?.llm.apiKeys?.[provider] ?? cfg?.llm.apiKey ?? resolveApiKey() ?? '';
+    return isValidApiKey(provider, key);
+  });
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
-  const handleApiKey = useCallback((key: string) => {
-    if (!isValidAnthropicKey(key)) {
-      setApiKeyError('Invalid key format. Expect sk-ant-… or sk-proj-…');
-      return;
-    }
-    try {
-      initAnthropicClient(key);
-      const cfg = loadConfig() ?? defaultConfig(pickDefaultModel('sonnet'));
-      cfg.llm.apiKey = key;
-      saveConfig(cfg);
-      setApiKeyReady(true);
-      setApiKeyError(null);
-    } catch (err) {
-      setApiKeyError(err instanceof Error ? err.message : String(err));
-    }
-  }, []);
+  const handleApiKey = useCallback(
+    (key: string) => {
+      if (!isValidApiKey(currentProvider, key)) {
+        const hints: Record<string, string> = {
+          anthropic: 'Expect sk-ant-… or sk-proj-…',
+          openai: 'Expect sk-… format',
+          google: 'Key must not be empty',
+        };
+        setApiKeyError(`Invalid key format. ${hints[currentProvider] ?? ''}`);
+        return;
+      }
+      try {
+        if (currentProvider === 'anthropic') {
+          initAnthropicClient(key);
+        }
+        const cfg = loadConfig() ?? defaultConfig(DEFAULT_MODEL_BY_PROVIDER[currentProvider]);
+        cfg.llm.apiKeys = { ...cfg.llm.apiKeys, [currentProvider]: key };
+        if (currentProvider === 'anthropic') cfg.llm.apiKey = key;
+        saveConfig(cfg);
+        setApiKeyReady(true);
+        setApiKeyError(null);
+      } catch (err) {
+        setApiKeyError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [currentProvider],
+  );
 
   // Restore persisted API key from config on mount.
-  // Reject malformed keys so a poisoned config (chat text saved as apiKey) does
-  // not silently boot the agent loop with garbage credentials.
   useEffect(() => {
     if (apiKeyReady) return;
     const cfg = loadConfig();
-    if (cfg?.llm.apiKey && isValidAnthropicKey(cfg.llm.apiKey)) {
-      initAnthropicClient(cfg.llm.apiKey);
+    if (!cfg) return;
+    const provider = (cfg.llm.provider as ProviderName) ?? 'anthropic';
+    const key = cfg.llm.apiKeys?.[provider] ?? (provider === 'anthropic' ? cfg.llm.apiKey : '') ?? '';
+    if (key && isValidApiKey(provider, key)) {
+      if (provider === 'anthropic') initAnthropicClient(key);
       setApiKeyReady(true);
-    } else if (cfg?.llm.apiKey) {
+    } else if (cfg.llm.apiKey && provider === 'anthropic') {
       cfg.llm.apiKey = '';
       saveConfig(cfg);
     }
@@ -671,15 +696,20 @@ export function App({
   // Latest permission mode in a ref so AgentLoop sees up-to-date value across renders.
   const modeRef = useRef<PermissionMode>('ask');
 
-  // --- Create AgentLoop once when API key + cwd are ready ---
+  // --- Create AgentLoop once when API key + cwd + provider are ready ---
   useEffect(() => {
     if (!apiKeyReady) return;
 
     const cfgForLoop = loadConfig();
-    const loop = new AgentLoop({
+    const provider = (cfgForLoop?.llm.provider as ProviderName) ?? currentProvider;
+    const modelId = cfgForLoop?.llm.model ?? DEFAULT_MODEL_BY_PROVIDER[provider];
+    const apiKey = cfgForLoop?.llm.apiKeys?.[provider] ?? cfgForLoop?.llm.apiKey ?? '';
+
+    const loopOpts: AgentLoopOptions = {
       systemPrompt: SYSTEM_PROMPT,
       tools: ALL_TOOLS,
-      model: cfgForLoop?.llm.model ?? pickDefaultModel('sonnet'),
+      model: modelId,
+      provider,
       maxToolRoundsPerTurn: cfgForLoop?.agent?.maxToolRoundsPerTurn,
       thinkingMode,
       permissionMode: mode,
@@ -691,7 +721,13 @@ export function App({
         askUser,
         emit: () => {},
       },
-    });
+    };
+
+    if (provider !== 'anthropic') {
+      loopOpts.aiModel = getAIModel(provider as 'openai' | 'google', modelId, apiKey);
+    }
+
+    const loop = new AgentLoop(loopOpts);
 
     // Accumulates streaming text within a single model response round.
     // Reset on turn:thinking (each new round), consumed by turn:stream handler.
@@ -873,7 +909,7 @@ export function App({
       loop.abort();
       loopRef.current = null;
     };
-  }, [apiKeyReady, cwd, askUser, promptPermission]);
+  }, [apiKeyReady, currentProvider, cwd, askUser, promptPermission]);
 
   // Keep loop config in sync when mode / model / thinkingMode change without recreating the loop.
   useEffect(() => {
@@ -882,8 +918,16 @@ export function App({
   }, [mode]);
 
   useEffect(() => {
-    if (currentModelId) loopRef.current?.updateConfig({ model: currentModelId });
-  }, [currentModelId]);
+    if (!currentModelId) return;
+    if (currentProvider !== 'anthropic') {
+      const cfg = loadConfig();
+      const apiKey = cfg?.llm.apiKeys?.[currentProvider] ?? '';
+      const aiModel = getAIModel(currentProvider as 'openai' | 'google', currentModelId, apiKey);
+      loopRef.current?.updateConfig({ model: currentModelId, aiModel });
+    } else {
+      loopRef.current?.updateConfig({ model: currentModelId });
+    }
+  }, [currentModelId, currentProvider]);
 
   useEffect(() => {
     loopRef.current?.updateConfig({ thinkingMode });
@@ -1001,13 +1045,16 @@ export function App({
     inputRef.current?.setText('');
 
     // API key setup mode — first input is treated as the key.
-    // Strict prefix match (sk-ant- or sk-proj-) avoids accidentally swallowing
-    // a regular chat message before setup.
     if (!apiKeyReady) {
-      if (text.startsWith('sk-ant-') || text.startsWith('sk-proj-')) {
+      if (isValidApiKey(currentProvider, text)) {
         handleApiKey(text);
       } else {
-        setToast('paste your Anthropic API key (starts with sk-ant- or sk-proj-) and press Enter');
+        const hints: Record<string, string> = {
+          anthropic: 'starts with sk-ant- or sk-proj-',
+          openai: 'starts with sk-',
+          google: 'any non-empty string',
+        };
+        setToast(`paste your ${currentProvider} API key (${hints[currentProvider] ?? 'non-empty'}) and press Enter`);
       }
       return;
     }
@@ -1082,20 +1129,26 @@ export function App({
   const confirmProvider = useCallback(() => {
     const p = PROVIDERS[providerSel];
     setProviderOpen(false);
-    if (!p) return;
-    if (p.status !== 'available') {
-      setToast(`${p.name}: coming in v2`);
-      return;
-    }
-    // Reset key so ApiKeySetup overlay surfaces
-    const cfg = loadConfig() ?? defaultConfig(pickDefaultModel('sonnet'));
-    cfg.llm.apiKey = '';
-    cfg.llm.provider = 'anthropic';
+    if (!p || p.status !== 'available') return;
+    const newProvider = p.id as ProviderName;
+    const cfg = loadConfig() ?? defaultConfig(DEFAULT_MODEL_BY_PROVIDER[newProvider]);
+    cfg.llm.provider = newProvider;
+    cfg.llm.model = DEFAULT_MODEL_BY_PROVIDER[newProvider];
     saveConfig(cfg);
-    resetAnthropicClient();
-    setApiKeyError(null);
-    setApiKeyReady(false);
-    setToast(`Provider: ${p.name}. Paste API key below and press Enter.`);
+    if (newProvider === 'anthropic') resetAnthropicClient();
+    setCurrentProvider(newProvider);
+    setCurrentModelId(DEFAULT_MODEL_BY_PROVIDER[newProvider]);
+    // Check if we already have a key for this provider
+    const existingKey = cfg.llm.apiKeys?.[newProvider] ?? (newProvider === 'anthropic' ? cfg.llm.apiKey : '');
+    if (existingKey && isValidApiKey(newProvider, existingKey)) {
+      if (newProvider === 'anthropic') initAnthropicClient(existingKey);
+      setApiKeyReady(true);
+      setToast(`Provider: ${p.name}`);
+    } else {
+      setApiKeyError(null);
+      setApiKeyReady(false);
+      setToast(`Provider: ${p.name}. Paste API key below and press Enter.`);
+    }
   }, [providerSel]);
 
   const cancelProvider = useCallback(() => {
@@ -1107,7 +1160,7 @@ export function App({
     setModelOpen(true);
     setModelLoading(true);
     setModelSel(0);
-    listAvailableModels()
+    listAvailableModels(currentProvider)
       .then((list) => {
         setModelChoices(list);
         const idx = list.findIndex((m) => m.id === currentModelId);
@@ -1115,18 +1168,15 @@ export function App({
         setModelLoading(false);
       })
       .catch(() => {
-        // listAvailableModels already returns the static catalog on failure,
-        // so this catch covers truly unexpected errors.
-        setModelChoices(
-          ANTHROPIC_MODELS.map((m) => ({
-            id: m.id,
-            displayName: m.displayName,
-            recommended: m.recommended,
-          })),
-        );
+        const fallback = ANTHROPIC_MODELS.map((m) => ({
+          id: m.id,
+          displayName: m.displayName,
+          recommended: m.recommended,
+        }));
+        setModelChoices(fallback);
         setModelLoading(false);
       });
-  }, [currentModelId]);
+  }, [currentModelId, currentProvider]);
 
   const confirmModel = useCallback(() => {
     const pick = modelChoices[modelSel];
@@ -1907,7 +1957,7 @@ export function App({
             title="Anthropic API key"
           >
             <box style={{ flexDirection: 'column', alignItems: 'center' }}>
-              <ApiKeySetup error={apiKeyError} />
+              <ApiKeySetup error={apiKeyError} provider={currentProvider} />
               <box style={{ marginTop: 1, width: 68, flexDirection: 'column' }}>
                 <box
                   style={{
@@ -2017,7 +2067,7 @@ export function App({
             left: Math.floor((width - 64) / 2),
           }}
         >
-          <ApiKeySetup error={apiKeyError} />
+          <ApiKeySetup error={apiKeyError} provider={currentProvider} />
         </box>
       ) : null}
 

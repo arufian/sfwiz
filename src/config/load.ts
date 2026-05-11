@@ -11,7 +11,12 @@ export function loadConfig(): Config | null {
   if (!existsSync(CONFIG_PATH)) return null;
   try {
     const raw = readFileSync(CONFIG_PATH, 'utf8');
-    return Config.parse(JSON.parse(raw));
+    const cfg = Config.parse(JSON.parse(raw));
+    // Migrate legacy apiKey → apiKeys['anthropic']
+    if (cfg.llm.apiKey && !cfg.llm.apiKeys['anthropic']) {
+      cfg.llm.apiKeys = { ...cfg.llm.apiKeys, anthropic: cfg.llm.apiKey };
+    }
+    return cfg;
   } catch {
     return null;
   }

@@ -7,9 +7,34 @@ describe('LLMConfig', () => {
     expect(result.success).toBe(true);
   });
 
-  test('rejects unknown provider', () => {
+  test('accepts openai provider', () => {
     const result = LLMConfig.safeParse({ provider: 'openai', model: 'gpt-4o' });
+    expect(result.success).toBe(true);
+  });
+
+  test('accepts google provider', () => {
+    const result = LLMConfig.safeParse({ provider: 'google', model: 'gemini-2.0-flash' });
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects unknown provider', () => {
+    const result = LLMConfig.safeParse({ provider: 'groq', model: 'llama3' });
     expect(result.success).toBe(false);
+  });
+
+  test('apiKeys defaults to empty object', () => {
+    const result = LLMConfig.parse({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
+    expect(result.apiKeys).toEqual({});
+  });
+
+  test('apiKeys stores per-provider keys', () => {
+    const result = LLMConfig.parse({
+      provider: 'openai',
+      model: 'gpt-4o',
+      apiKeys: { openai: 'sk-proj-abc', anthropic: 'sk-ant-xyz' },
+    });
+    expect(result.apiKeys['openai']).toBe('sk-proj-abc');
+    expect(result.apiKeys['anthropic']).toBe('sk-ant-xyz');
   });
 
   test('defaults apiKeyEnv', () => {

@@ -60,6 +60,8 @@ export interface RouteOptions {
   inputs?: Record<string, unknown>;
   cwd?: string;
   abortController?: AbortController;
+  /** Provider in use — subagents require Anthropic. */
+  provider?: string;
 }
 
 export type RouteResult =
@@ -73,10 +75,15 @@ export type RouteResult =
     };
 
 /**
- * Route a request to the chosen persona — every persona runs as an isolated
- * claude-agent-sdk subagent (SDK-level tool isolation).
+ * Route a request to the chosen persona.
+ * Persona subagents require the Anthropic provider. For other providers,
+ * returns a message instructing the user to switch.
  */
 export async function route(opts: RouteOptions): Promise<RouteResult> {
+  if (opts.provider && opts.provider !== 'anthropic') {
+    const msg = `Persona subagents require the Anthropic provider. Switch via /provider to use the ${opts.persona} persona.`;
+    return { persona: opts.persona as 'designer', output: msg, sessionId: null };
+  }
   const common = {
     prompt: opts.prompt,
     inputs: opts.inputs,

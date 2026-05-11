@@ -19,9 +19,8 @@ export const PROVIDERS: ProviderEntry[] = [
     status: 'available',
     detail: 'Claude Opus / Sonnet / Haiku — sk-ant-… or sk-proj-…',
   },
-  { id: 'openai', name: 'OpenAI', status: 'soon', detail: 'GPT — coming in v2' },
-  { id: 'google', name: 'Google', status: 'soon', detail: 'Gemini — coming in v2' },
-  { id: 'groq', name: 'Groq', status: 'soon', detail: 'Llama / Mixtral — coming in v2' },
+  { id: 'openai', name: 'OpenAI', status: 'available', detail: 'GPT-4o / o1 — sk-proj-…' },
+  { id: 'google', name: 'Google', status: 'available', detail: 'Gemini 2.0 Flash / 2.5 Pro' },
 ];
 
 export function ProviderPicker({ selected }: { selected: number }) {

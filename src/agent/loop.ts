@@ -1,4 +1,5 @@
 import EventEmitter from 'events';
+import { streamText, type LanguageModel, type ToolSet, type ModelMessage } from 'ai';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import {
@@ -10,33 +11,30 @@ import { TokenTracker } from '~/agent/token-tracker';
 import type { AgentEventMap } from '~/agent/types';
 import type { PermissionMode } from '~/config/schema';
 import { getAnthropicClient } from '~/llm/client';
+import { toCoreMessages, fromCoreAssistant, fromCoreToolResults, type StreamToolCall } from '~/llm/message-adapter';
 import { DestructiveOpGate } from '~/tools/gate';
 import { PermissionModeGuard } from '~/tools/permission-mode';
 import type { Tool, ToolContext, OrgHandle } from '~/tools/types';
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
-const MAX_TOOL_ROUNDS = 20; // guard against infinite loops
-// Cross-turn cap on identical (tool, args) calls. After this many repeats the
-// loop short-circuits with a directive error so the model stops retrying the
-// same write_file/sf_deploy_start churn after a deploy failure.
+const MAX_TOOL_ROUNDS = 20;
 const REPEAT_CALL_LIMIT = 3;
 
 export interface AgentLoopOptions {
   systemPrompt: string;
   tools: Tool[];
   model?: string;
+  /** AI-SDK LanguageModel — required when provider is 'openai' or 'google'. */
+  aiModel?: LanguageModel;
+  provider?: 'anthropic' | 'openai' | 'google';
   ctx?: Partial<ToolContext>;
   abortController?: AbortController;
+  /** Anthropic SDK client — only used when provider === 'anthropic'. */
   client?: Anthropic;
   permissionMode?: PermissionMode;
   cwd?: string;
   maxToolRoundsPerTurn?: number;
   thinkingMode?: boolean;
-  /**
-   * Called when PermissionModeGuard says a tool can't be auto-allowed.
-   * Resolve true to allow this single call, false to deny.
-   * If omitted, all non-auto calls are denied.
-   */
   onPermissionPrompt?: (toolName: string, args: Record<string, unknown>) => Promise<boolean>;
 }
 
@@ -46,9 +44,11 @@ export class AgentLoop extends EventEmitter {
   private readonly systemPrompt: string;
   private readonly tools: Tool[];
   private model: string;
+  private aiModel: LanguageModel | null;
+  private provider: 'anthropic' | 'openai' | 'google';
   private ctx: Partial<ToolContext>;
   private readonly abortController: AbortController;
-  private readonly client: Anthropic;
+  private readonly client: Anthropic | null;
   private permGuard: PermissionModeGuard;
   private readonly onPermissionPrompt: (
     toolName: string,
@@ -65,9 +65,11 @@ export class AgentLoop extends EventEmitter {
     this.systemPrompt = opts.systemPrompt;
     this.tools = opts.tools;
     this.model = opts.model ?? DEFAULT_MODEL;
+    this.provider = opts.provider ?? 'anthropic';
+    this.aiModel = opts.aiModel ?? null;
     this.ctx = opts.ctx ?? {};
     this.abortController = opts.abortController ?? new AbortController();
-    this.client = opts.client ?? getAnthropicClient();
+    this.client = this.provider === 'anthropic' ? (opts.client ?? getAnthropicClient()) : null;
     this.cwd = opts.cwd ?? process.cwd();
     this.permGuard = new PermissionModeGuard(
       opts.permissionMode ?? 'ask',
@@ -78,8 +80,14 @@ export class AgentLoop extends EventEmitter {
     this.thinkingMode = opts.thinkingMode ?? false;
   }
 
-  updateConfig(opts: { model?: string; permissionMode?: PermissionMode; thinkingMode?: boolean }): void {
+  updateConfig(opts: {
+    model?: string;
+    aiModel?: LanguageModel;
+    permissionMode?: PermissionMode;
+    thinkingMode?: boolean;
+  }): void {
     if (opts.model !== undefined) this.model = opts.model;
+    if (opts.aiModel !== undefined) this.aiModel = opts.aiModel;
     if (opts.thinkingMode !== undefined) this.thinkingMode = opts.thinkingMode;
     if (opts.permissionMode !== undefined) {
       this.permGuard = new PermissionModeGuard(opts.permissionMode, this.cwd);
@@ -106,23 +114,25 @@ export class AgentLoop extends EventEmitter {
     this.ctx = { ...this.ctx, org };
   }
 
-  /**
-   * Run the agentic loop.
-   * - Emits lifecycle events for TUI indicators.
-   * - Handles tool calls with manual dispatch (guards against silent tools drop).
-   * - Applies 4-breakpoint prompt caching (Opus H3).
-   */
   async run(initialMessages: MessageParam[]): Promise<string> {
     try {
       return await this._runInner(initialMessages);
     } catch (err) {
-      // Emit turn:done('', []) so TUI clears the thinking/streaming indicator on fatal errors.
       this.emit('turn:done', '', []);
       throw err;
     }
   }
 
   private async _runInner(initialMessages: MessageParam[]): Promise<string> {
+    if (this.provider !== 'anthropic') {
+      return this._runAISDK(initialMessages);
+    }
+    return this._runAnthropic(initialMessages);
+  }
+
+  // ─── Anthropic path (unchanged — preserves prompt caching) ──────────────────
+
+  private async _runAnthropic(initialMessages: MessageParam[]): Promise<string> {
     const messages: MessageParam[] = [...initialMessages];
     const systemBlocks = buildCachedSystem(this.systemPrompt);
     const toolDefs = buildCachedToolDefs(this.tools);
@@ -130,6 +140,8 @@ export class AgentLoop extends EventEmitter {
 
     let round = 0;
     let finalText = '';
+
+    const client = this.client!;
 
     while (round < this.maxToolRounds) {
       if (this.abortController.signal.aborted) {
@@ -141,13 +153,13 @@ export class AgentLoop extends EventEmitter {
 
       const cachedMessages = applyHistoryCacheBreakpoints(messages);
 
-      const stream = await this.client.messages.stream(
+      const stream = await client.messages.stream(
         {
           model: this.model,
           max_tokens: 8192,
-          system: systemBlocks as Parameters<typeof this.client.messages.stream>[0]['system'],
+          system: systemBlocks as Parameters<typeof client.messages.stream>[0]['system'],
           messages: cachedMessages,
-          tools: toolDefs as Parameters<typeof this.client.messages.stream>[0]['tools'],
+          tools: toolDefs as Parameters<typeof client.messages.stream>[0]['tools'],
         },
         { signal: this.abortController.signal },
       );
@@ -195,8 +207,7 @@ export class AgentLoop extends EventEmitter {
               inputTokens: usage.input_tokens ?? 0,
               outputTokens: 0,
               cacheCreationTokens:
-                (usage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ??
-                0,
+                (usage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ?? 0,
               cacheReadTokens:
                 (usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0,
             });
@@ -207,7 +218,6 @@ export class AgentLoop extends EventEmitter {
       const finalMsg = await stream.finalMessage();
       const stopReason = finalMsg.stop_reason;
 
-      // Push assistant turn to history.
       if (assistantText || toolCalls.length > 0) {
         const content: MessageParam['content'] = [];
         if (assistantText) content.push({ type: 'text', text: assistantText });
@@ -226,7 +236,6 @@ export class AgentLoop extends EventEmitter {
         break;
       }
 
-      // Execute tool calls and collect results.
       const toolResultContent: Array<{
         type: 'tool_result';
         tool_use_id: string;
@@ -234,112 +243,15 @@ export class AgentLoop extends EventEmitter {
       }> = [];
 
       for (const tc of toolCalls) {
-        const tool = this.tools.find((t) => t.name === tc.name);
-        this.emit('tool:pending', tc.id, tc.name, tc.input);
-
-        if (!tool) {
-          this.emit('tool:error', tc.id, tc.name, `Unknown tool: ${tc.name}`);
-          toolResultContent.push({
-            type: 'tool_result',
-            tool_use_id: tc.id,
-            content: `Error: unknown tool "${tc.name}"`,
-          });
-          continue;
-        }
-
         let parsedInput: Record<string, unknown> = {};
         try {
           parsedInput = JSON.parse(tc.input || '{}') as Record<string, unknown>;
         } catch {}
-
-        // Repeat-call guard: ask_user is exempt (same prompt may legitimately
-        // re-fire). Other tools blocked after REPEAT_CALL_LIMIT identical calls.
-        if (tc.name !== 'ask_user') {
-          const sig = `${tc.name}::${tc.input || '{}'}`;
-          const prev = this.toolCallCounts.get(sig) ?? 0;
-          if (prev >= REPEAT_CALL_LIMIT) {
-            const msg = `Repeated identical ${tc.name} call blocked after ${prev} attempts`;
-            this.emit('tool:error', tc.id, tc.name, msg);
-            toolResultContent.push({
-              type: 'tool_result',
-              tool_use_id: tc.id,
-              content:
-                `Error: ${msg}. You have already invoked ${tc.name} with identical ` +
-                `arguments ${prev} times. Stop retrying. Call ask_user to ask the ` +
-                `user how to proceed (e.g. abort, change inputs, or skip this step) ` +
-                `before attempting any further tool call.`,
-            });
-            continue;
-          }
-          this.toolCallCounts.set(sig, prev + 1);
-        }
-
-        // Destructive-op gate: hard-block destructive SF ops without a recent
-        // non-cancelled ask_user confirmation. Locked rule (phase-1 §locked-decisions).
-        try {
-          destructiveGate.check(tc.name, round);
-        } catch (gateErr) {
-          const msg = gateErr instanceof Error ? gateErr.message : String(gateErr);
-          this.emit('tool:error', tc.id, tc.name, msg);
-          toolResultContent.push({
-            type: 'tool_result',
-            tool_use_id: tc.id,
-            content: `Error: ${msg} Call ask_user first and have the user confirm a non-cancel option.`,
-          });
-          continue;
-        }
-
-        // Permission-mode guard: ask/auto-edit/yolo. Destructive ops bypass
-        // (already enforced by DestructiveOpGate above; ALWAYS_PROMPT inside
-        // PermissionModeGuard returns shouldAutoAllow=false → would prompt,
-        // but we already did the ask_user-based gate so allow through here).
-        const isDestructive = [
-          'sf_deploy_start',
-          'sf_scratch_create',
-          'sf_assign_permset',
-        ].includes(tc.name);
-        const autoAllowed = isDestructive
-          ? true
-          : this.permGuard.shouldAutoAllow(tc.name, parsedInput);
-        if (!autoAllowed) {
-          const allowed = await this.onPermissionPrompt(tc.name, parsedInput);
-          if (!allowed) {
-            this.emit('tool:error', tc.id, tc.name, 'Denied by user');
-            toolResultContent.push({
-              type: 'tool_result',
-              tool_use_id: tc.id,
-              content: 'Error: user denied this tool call via the permission prompt.',
-            });
-            continue;
-          }
-        }
-
-        this.emit('tool:running', tc.id, tc.name);
-        try {
-          const validated = tool.parameters.parse(parsedInput);
-          const result = await tool.execute(validated, this.ctx as ToolContext);
-
-          // Record ask_user confirmations (non-cancelled only) for the destructive gate.
-          if (tc.name === 'ask_user') {
-            const r = result as { cancelled?: boolean } | string;
-            const cancelled = typeof r === 'object' && r !== null && r.cancelled === true;
-            if (!cancelled) destructiveGate.record('ask_user', tc.id, round);
-          }
-
-          this.emit('tool:done', tc.id, tc.name, result);
-          toolResultContent.push({
-            type: 'tool_result',
-            tool_use_id: tc.id,
-            content: typeof result === 'string' ? result : JSON.stringify(result),
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          this.emit('tool:error', tc.id, tc.name, msg);
-          toolResultContent.push({
-            type: 'tool_result',
-            tool_use_id: tc.id,
-            content: `Error: ${msg}`,
-          });
+        const result = await this._executeTool(tc.id, tc.name, parsedInput, destructiveGate, round);
+        if (result.type === 'gate_block') {
+          toolResultContent.push({ type: 'tool_result', tool_use_id: tc.id, content: result.content });
+        } else {
+          toolResultContent.push({ type: 'tool_result', tool_use_id: tc.id, content: result.content });
         }
       }
 
@@ -348,5 +260,176 @@ export class AgentLoop extends EventEmitter {
 
     this.emit('turn:done', finalText, messages);
     return finalText;
+  }
+
+  // ─── AI-SDK path (OpenAI / Google) ──────────────────────────────────────────
+
+  private async _runAISDK(initialMessages: MessageParam[]): Promise<string> {
+    if (!this.aiModel) {
+      throw new Error(`AgentLoop: aiModel is required for provider '${this.provider}'`);
+    }
+
+    const messages: MessageParam[] = [...initialMessages];
+    const destructiveGate = new DestructiveOpGate();
+
+    // Build AI-SDK ToolSet from Tool[] (parameters are already Zod schemas)
+    const aiTools: ToolSet = {};
+    for (const t of this.tools) {
+      // AI-SDK v5 uses `inputSchema` (not `parameters`)
+      aiTools[t.name] = { description: t.description, inputSchema: t.parameters } as ToolSet[string];
+    }
+
+    let round = 0;
+    let finalText = '';
+
+    while (round < this.maxToolRounds) {
+      if (this.abortController.signal.aborted) {
+        throw new DOMException('AgentLoop aborted', 'AbortError');
+      }
+      round++;
+
+      this.emit('turn:thinking');
+
+      const modelMessages = toCoreMessages(messages);
+
+      const result = streamText({
+        model: this.aiModel,
+        system: this.systemPrompt,
+        messages: modelMessages as ModelMessage[],
+        tools: aiTools,
+        maxOutputTokens: 8192,
+        abortSignal: this.abortController.signal,
+      });
+
+      let assistantText = '';
+      const toolCalls: StreamToolCall[] = [];
+
+      for await (const chunk of result.fullStream) {
+        if (this.abortController.signal.aborted) {
+          throw new DOMException('AgentLoop aborted', 'AbortError');
+        }
+
+        if (chunk.type === 'text-delta') {
+          assistantText += chunk.text;
+          this.emit('turn:stream', chunk.text);
+        } else if (chunk.type === 'tool-call') {
+          toolCalls.push({
+            id: chunk.toolCallId,
+            name: chunk.toolName,
+            args: (chunk.input ?? {}) as Record<string, unknown>,
+          });
+        } else if (chunk.type === 'finish') {
+          this.tokenTracker.record({
+            inputTokens: chunk.totalUsage.inputTokens ?? 0,
+            outputTokens: chunk.totalUsage.outputTokens ?? 0,
+            cacheCreationTokens: 0,
+            cacheReadTokens: 0,
+          });
+        }
+      }
+
+      const finishReason = await result.finishReason;
+
+      messages.push(fromCoreAssistant(assistantText, toolCalls));
+
+      if (finishReason !== 'tool-calls' || toolCalls.length === 0) {
+        finalText = assistantText;
+        break;
+      }
+
+      const toolResultParts: Array<{ toolCallId: string; result: string }> = [];
+
+      for (const tc of toolCalls) {
+        const execResult = await this._executeTool(tc.id, tc.name, tc.args, destructiveGate, round);
+        toolResultParts.push({ toolCallId: tc.id, result: execResult.content });
+      }
+
+      messages.push(fromCoreToolResults(toolResultParts));
+    }
+
+    this.emit('turn:done', finalText, messages);
+    return finalText;
+  }
+
+  // ─── Shared tool execution (provider-agnostic) ──────────────────────────────
+
+  private async _executeTool(
+    callId: string,
+    toolName: string,
+    parsedInput: Record<string, unknown>,
+    destructiveGate: DestructiveOpGate,
+    round: number,
+  ): Promise<{ content: string; type: 'ok' | 'gate_block' | 'error' }> {
+    const tool = this.tools.find((t) => t.name === toolName);
+    this.emit('tool:pending', callId, toolName, parsedInput);
+
+    if (!tool) {
+      this.emit('tool:error', callId, toolName, `Unknown tool: ${toolName}`);
+      return { content: `Error: unknown tool "${toolName}"`, type: 'error' };
+    }
+
+    // Repeat-call guard
+    if (toolName !== 'ask_user') {
+      const sig = `${toolName}::${JSON.stringify(parsedInput)}`;
+      const prev = this.toolCallCounts.get(sig) ?? 0;
+      if (prev >= REPEAT_CALL_LIMIT) {
+        const msg = `Repeated identical ${toolName} call blocked after ${prev} attempts`;
+        this.emit('tool:error', callId, toolName, msg);
+        return {
+          content:
+            `Error: ${msg}. You have already invoked ${toolName} with identical ` +
+            `arguments ${prev} times. Stop retrying. Call ask_user to ask the ` +
+            `user how to proceed (e.g. abort, change inputs, or skip this step) ` +
+            `before attempting any further tool call.`,
+          type: 'gate_block',
+        };
+      }
+      this.toolCallCounts.set(sig, prev + 1);
+    }
+
+    // Destructive-op gate
+    try {
+      destructiveGate.check(toolName, round);
+    } catch (gateErr) {
+      const msg = gateErr instanceof Error ? gateErr.message : String(gateErr);
+      this.emit('tool:error', callId, toolName, msg);
+      return {
+        content: `Error: ${msg} Call ask_user first and have the user confirm a non-cancel option.`,
+        type: 'gate_block',
+      };
+    }
+
+    // Permission-mode guard
+    const isDestructive = ['sf_deploy_start', 'sf_scratch_create', 'sf_assign_permset'].includes(toolName);
+    const autoAllowed = isDestructive ? true : this.permGuard.shouldAutoAllow(toolName, parsedInput);
+    if (!autoAllowed) {
+      const allowed = await this.onPermissionPrompt(toolName, parsedInput);
+      if (!allowed) {
+        this.emit('tool:error', callId, toolName, 'Denied by user');
+        return { content: 'Error: user denied this tool call via the permission prompt.', type: 'error' };
+      }
+    }
+
+    this.emit('tool:running', callId, toolName);
+    try {
+      const validated = tool.parameters.parse(parsedInput);
+      const result = await tool.execute(validated, this.ctx as ToolContext);
+
+      if (toolName === 'ask_user') {
+        const r = result as { cancelled?: boolean } | string;
+        const cancelled = typeof r === 'object' && r !== null && r.cancelled === true;
+        if (!cancelled) destructiveGate.record('ask_user', callId, round);
+      }
+
+      this.emit('tool:done', callId, toolName, result);
+      return {
+        content: typeof result === 'string' ? result : JSON.stringify(result),
+        type: 'ok',
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.emit('tool:error', callId, toolName, msg);
+      return { content: `Error: ${msg}`, type: 'error' };
+    }
   }
 }

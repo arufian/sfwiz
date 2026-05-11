@@ -18,11 +18,14 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.71",
+    "@ai-sdk/openai": "^3.0.63",
     "@anthropic-ai/claude-agent-sdk": "^0.2.119",
     "@anthropic-ai/sdk": "^0.91.1",
     "@opentui/core": "^0.1.102",
     "@opentui/react": "^0.1.102",
     "@salesforce/core": "^8.28.4",
+    "ai": "^6.0.177",
     "cheerio": "^1.2.0",
     "chokidar": "^5.0.0",
     "dayjs": "^1.11.20",
