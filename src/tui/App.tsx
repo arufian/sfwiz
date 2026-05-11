@@ -1451,32 +1451,44 @@ export function App({
               },
             ]);
           } else {
-            const { spawnSync } = await import('child_process');
-            const result = spawnSync('sf', ['org', 'open', '--target-org', targetOrg], {
-              encoding: 'utf8',
-              timeout: 30_000,
-              stdio: 'inherit',
+            const { spawn } = await import('child_process');
+            await new Promise<void>((resolve) => {
+              let stderr = '';
+              const child = spawn('sf', ['org', 'open', '--target-org', targetOrg], {
+                stdio: ['ignore', 'ignore', 'pipe'],
+              });
+              child.stderr?.on('data', (d: Buffer) => { stderr += String(d); });
+              child.on('error', (err) => {
+                setBlocks((bs) => [
+                  ...bs,
+                  { id: crypto.randomUUID(), kind: 'assistant', text: `Failed to open **${targetOrg}**: ${err.message}` },
+                ]);
+                resolve();
+              });
+              child.on('close', (code) => {
+                if (code !== 0) {
+                  const msg = stderr.trim() || `exit code ${code ?? '?'}`;
+                  setBlocks((bs) => [
+                    ...bs,
+                    { id: crypto.randomUUID(), kind: 'assistant', text: `Failed to open **${targetOrg}**: ${msg}` },
+                  ]);
+                } else {
+                  setBlocks((bs) => [
+                    ...bs,
+                    { id: crypto.randomUUID(), kind: 'assistant', text: `Opened **${targetOrg}** in browser.` },
+                  ]);
+                }
+                resolve();
+              });
+              setTimeout(() => {
+                try { child.kill('SIGKILL'); } catch {}
+                setBlocks((bs) => [
+                  ...bs,
+                  { id: crypto.randomUUID(), kind: 'assistant', text: `Timed out opening **${targetOrg}**.` },
+                ]);
+                resolve();
+              }, 30_000);
             });
-            if (result.status !== 0) {
-              const err = result.error?.message ?? result.stderr?.trim() ?? 'unknown error';
-              setBlocks((bs) => [
-                ...bs,
-                {
-                  id: crypto.randomUUID(),
-                  kind: 'assistant',
-                  text: `Failed to open **${targetOrg}**: ${err}`,
-                },
-              ]);
-            } else {
-              setBlocks((bs) => [
-                ...bs,
-                {
-                  id: crypto.randomUUID(),
-                  kind: 'assistant',
-                  text: `Opened **${targetOrg}** in browser.`,
-                },
-              ]);
-            }
           }
         } else if (cmd.handler === 'learn') {
           const answer = await askUser({
