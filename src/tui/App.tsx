@@ -1451,42 +1451,41 @@ export function App({
               },
             ]);
           } else {
+            const loadingId = crypto.randomUUID();
+            setBlocks((bs) => [
+              ...bs,
+              { id: loadingId, kind: 'loading', label: `Opening ${targetOrg} in browser`, elapsedS: 0 },
+            ]);
             const { spawn } = await import('child_process');
             await new Promise<void>((resolve) => {
               let stderr = '';
+              let settled = false;
+              const finish = (text: string) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                setBlocks((bs) => [
+                  ...bs.filter((b) => b.id !== loadingId),
+                  { id: crypto.randomUUID(), kind: 'assistant', text },
+                ]);
+                resolve();
+              };
               const child = spawn('sf', ['org', 'open', '--target-org', targetOrg], {
                 stdio: ['ignore', 'ignore', 'pipe'],
               });
               child.stderr?.on('data', (d: Buffer) => { stderr += String(d); });
-              child.on('error', (err) => {
-                setBlocks((bs) => [
-                  ...bs,
-                  { id: crypto.randomUUID(), kind: 'assistant', text: `Failed to open **${targetOrg}**: ${err.message}` },
-                ]);
-                resolve();
-              });
+              child.on('error', (err) => finish(`Failed to open **${targetOrg}**: ${err.message}`));
               child.on('close', (code) => {
                 if (code !== 0) {
                   const msg = stderr.trim() || `exit code ${code ?? '?'}`;
-                  setBlocks((bs) => [
-                    ...bs,
-                    { id: crypto.randomUUID(), kind: 'assistant', text: `Failed to open **${targetOrg}**: ${msg}` },
-                  ]);
+                  finish(`Failed to open **${targetOrg}**: ${msg}`);
                 } else {
-                  setBlocks((bs) => [
-                    ...bs,
-                    { id: crypto.randomUUID(), kind: 'assistant', text: `Opened **${targetOrg}** in browser.` },
-                  ]);
+                  finish(`Opened **${targetOrg}** in browser.`);
                 }
-                resolve();
               });
-              setTimeout(() => {
+              const timer = setTimeout(() => {
                 try { child.kill('SIGKILL'); } catch {}
-                setBlocks((bs) => [
-                  ...bs,
-                  { id: crypto.randomUUID(), kind: 'assistant', text: `Timed out opening **${targetOrg}**.` },
-                ]);
-                resolve();
+                finish(`Timed out opening **${targetOrg}**.`);
               }, 30_000);
             });
           }
