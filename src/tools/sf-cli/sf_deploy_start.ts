@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
 import type { Tool, ToolContext } from '~/tools/types';
+import { runSfJson } from '~/tools/sf-cli/run-sf';
 
 const Params = z.object({
   targetOrg: z.string().optional(),
@@ -18,12 +18,9 @@ export const sfDeployStart: Tool<typeof Params> = {
     if (!org) throw new Error('No active org.');
 
     const cmd = args.dryRun ? 'validate' : 'start';
-    const result = spawnSync(
-      'sf',
+    return runSfJson(
       ['project', 'deploy', cmd, '--target-org', org, '--test-level', args.testLevel, '--json'],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 300_000 },
+      { cwd: ctx.session.projectRoot, timeoutMs: 300_000 },
     );
-    if (result.error) throw result.error;
-    return JSON.parse(result.stdout || '{}') as unknown;
   },
 };

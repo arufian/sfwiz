@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
 import type { Tool, ToolContext } from '~/tools/types';
+import { runSfJson } from '~/tools/sf-cli/run-sf';
 
 const Params = z.object({
   name: z.string().describe('Permission set API name'),
@@ -20,12 +20,9 @@ export const sfAssignPermset: Tool<typeof Params> = {
     const extra: string[] = [];
     if (args.onBehalfOf) extra.push('--on-behalf-of', args.onBehalfOf);
 
-    const result = spawnSync(
-      'sf',
+    return runSfJson(
       ['org', 'assign', 'permset', '--name', args.name, '--target-org', org, '--json', ...extra],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 60_000 },
+      { cwd: ctx.session.projectRoot, timeoutMs: 60_000 },
     );
-    if (result.error) throw result.error;
-    return JSON.parse(result.stdout || '{}') as unknown;
   },
 };

@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
 import type { Tool, ToolContext } from '~/tools/types';
+import { runSfJson } from '~/tools/sf-cli/run-sf';
 
 const Params = z.object({
   definitionFile: z.string().default('config/project-scratch-def.json'),
@@ -21,8 +21,7 @@ export const sfScratchCreate: Tool<typeof Params> = {
     if (args.devHubOrg) extra.push('--target-dev-hub', args.devHubOrg);
     if (args.setDefault) extra.push('--set-default');
 
-    const result = spawnSync(
-      'sf',
+    return runSfJson(
       [
         'org', 'create', 'scratch',
         '--definition-file', args.definitionFile,
@@ -30,9 +29,7 @@ export const sfScratchCreate: Tool<typeof Params> = {
         '--json',
         ...extra,
       ],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 10 * 60 * 1000 },
+      { cwd: ctx.session.projectRoot, timeoutMs: 10 * 60_000 },
     );
-    if (result.error) throw result.error;
-    return JSON.parse(result.stdout || '{}') as unknown;
   },
 };

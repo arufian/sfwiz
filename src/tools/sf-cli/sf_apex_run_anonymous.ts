@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
-import { unlinkSync, existsSync } from 'fs';
+import { unlink } from 'fs/promises';
 import type { Tool, ToolContext } from '~/tools/types';
+import { runSfJson } from '~/tools/sf-cli/run-sf';
 
 const Params = z.object({
   apexCode: z.string().min(1).describe('Apex code to execute anonymously'),
@@ -20,15 +20,12 @@ export const sfApexRunAnonymous: Tool<typeof Params> = {
     await Bun.write(tmpFile, args.apexCode);
 
     try {
-      const result = spawnSync(
-        'sf',
+      return await runSfJson(
         ['apex', 'run', '--target-org', org, '--file', tmpFile, '--json'],
-        { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 60_000 },
+        { cwd: ctx.session.projectRoot, timeoutMs: 60_000 },
       );
-      if (result.error) throw result.error;
-      return JSON.parse(result.stdout || '{}') as unknown;
     } finally {
-      if (existsSync(tmpFile)) unlinkSync(tmpFile);
+      await unlink(tmpFile).catch(() => {});
     }
   },
 };

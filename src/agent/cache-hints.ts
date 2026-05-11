@@ -108,6 +108,7 @@ interface ZodDef {
   description?: string;
   innerType?: { _def: ZodDef };
   defaultValue?: () => unknown;
+  options?: Array<{ _def: ZodDef }>; // ZodUnion member list
 }
 
 /**
@@ -127,6 +128,15 @@ function unwrapZod(def: ZodDef): { jsonType: string; isOptional: boolean; descri
       cur = cur.innerType?._def;
       continue;
     }
+    if (tn === 'ZodUnion' || tn === 'union') {
+      // Use first union member's type (the preferred form for the model).
+      const first = cur.options?.[0];
+      if (first) {
+        const inner = unwrapZod(first._def);
+        return { jsonType: inner.jsonType, isOptional, description: description ?? inner.description };
+      }
+      return { jsonType: 'string', isOptional, description };
+    }
     return { jsonType: zodTypeToJsonType(tn ?? ''), isOptional, description };
   }
   return { jsonType: 'string', isOptional, description };
@@ -139,5 +149,6 @@ function zodTypeToJsonType(zodTypeName: string): string {
   if (zodTypeName === 'ZodArray' || zodTypeName === 'array') return 'array';
   if (zodTypeName === 'ZodObject' || zodTypeName === 'object') return 'object';
   if (zodTypeName === 'ZodEnum' || zodTypeName === 'enum') return 'string';
+  if (zodTypeName === 'ZodRecord' || zodTypeName === 'record') return 'object';
   return 'string';
 }

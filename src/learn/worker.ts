@@ -114,7 +114,9 @@ self.addEventListener('message', (ev: MessageEvent<WorkerCommand>) => {
       send({ type: 'status', status: 'idle', lastRunAt: state.lastRunAt });
       break;
     case 'refresh':
-      runLearning().catch(console.error);
+      if (state.status !== 'running') {
+        runLearning().catch(console.error);
+      }
       break;
     case 'status':
       send({ type: 'status', status: state.status, lastRunAt: state.lastRunAt });

@@ -562,7 +562,7 @@ export function App({
       if (defaultOrg) {
         setCurrentOrg({
           alias: defaultOrg.alias ?? defaultOrg.username,
-          status: defaultOrg.connectedStatus === 'active' ? 'connected' : 'disconnected',
+          status: defaultOrg.connectedStatus === 'Connected' ? 'connected' : 'disconnected',
         });
         setCurrentOrgHandle({
           alias: defaultOrg.alias ?? defaultOrg.username,
@@ -625,7 +625,12 @@ export function App({
       },
     });
 
+    // Accumulates streaming text within a single model response round.
+    // Reset on turn:thinking (each new round), consumed by turn:stream handler.
+    let streamAccum = '';
+
     loop.on('turn:thinking', () => {
+      streamAccum = '';
       // Multi-round turns can fire turn:thinking many times. Avoid stacking
       // thinking blocks — if the last block is already thinking, leave it.
       setBlocks((bs) => {
@@ -635,17 +640,31 @@ export function App({
       });
     });
 
-    // Note: turn:stream fires once on the first text delta, but the SDK does
-    // not emit progressive deltas afterwards — full text only arrives at
-    // turn:done. Replacing thinking→assistant here would leave a blank gap
-    // with no animation. Keep the thinking equalizer animated until turn:done
-    // hands us the final text.
-    loop.on('turn:stream', () => {});
+    // Emit progressive text deltas into the chat block. Converts the current
+    // thinking block to an assistant block on first delta so intermediate text
+    // (e.g. "Let me check that…" before a tool call) is not lost.
+    loop.on('turn:stream', (delta) => {
+      streamAccum += delta;
+      const text = streamAccum;
+      setBlocks((bs) => {
+        const last = bs[bs.length - 1];
+        if (last?.kind === 'thinking') {
+          return [...bs.slice(0, -1), { id: last.id, kind: 'assistant' as const, text }];
+        }
+        if (last?.kind === 'assistant') {
+          return [...bs.slice(0, -1), { id: last.id, kind: 'assistant' as const, text }];
+        }
+        return [...bs, { id: crypto.randomUUID(), kind: 'assistant' as const, text }];
+      });
+    });
 
-    loop.on('turn:done', (finalText) => {
+    loop.on('turn:done', (finalText, fullMessages) => {
       setIsRunning(false);
-      if (finalText) {
-        conversationHistoryRef.current.push({ role: 'assistant', content: finalText });
+      // Replace entire conversation history with the full messages array from
+      // the loop — this includes all tool_use and tool_result rounds that were
+      // previously missing from conversationHistoryRef on subsequent user turns.
+      if (fullMessages.length > 0) {
+        conversationHistoryRef.current = [...fullMessages];
       }
       const t = loop.tokenTracker.get();
       const cost = loop.tokenTracker.estimatedCostUsd();
@@ -742,6 +761,7 @@ export function App({
 
     loopRef.current = loop;
     return () => {
+      loop.abort();
       loopRef.current = null;
     };
   }, [apiKeyReady, cwd, askUser, mode, promptPermission, currentModelId, thinkingMode]);

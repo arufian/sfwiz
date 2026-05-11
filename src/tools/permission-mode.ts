@@ -40,7 +40,8 @@ export class PermissionModeGuard {
   private isInsideCwd(filePath: unknown): boolean {
     if (typeof filePath !== 'string') return false;
     const abs = resolve(filePath);
-    return abs.startsWith(resolve(this.cwd));
+    const cwdAbs = resolve(this.cwd);
+    return abs === cwdAbs || abs.startsWith(cwdAbs + '/');
   }
 
   private askPolicy(toolName: string, args: Record<string, unknown>): boolean {

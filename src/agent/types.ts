@@ -22,7 +22,7 @@ export type AgentEventKind =
 export interface AgentEventMap {
   'turn:thinking': [];
   'turn:stream': [text: string];
-  'turn:done': [finalText: string];
+  'turn:done': [finalText: string, messages: MessageParam[]];
   'tool:pending': [callId: string, toolName: string, input: unknown];
   'tool:running': [callId: string, toolName: string];
   'tool:done': [callId: string, toolName: string, result: unknown];

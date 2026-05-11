@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
 
 const TrustEntry = z.object({
   path: z.string(),
@@ -33,6 +33,7 @@ export class TrustStore {
   }
 
   private save(): void {
+    mkdirSync(dirname(this.filePath), { recursive: true });
     writeFileSync(this.filePath, JSON.stringify(this.entries, null, 2), 'utf8');
     this.dirty = false;
   }

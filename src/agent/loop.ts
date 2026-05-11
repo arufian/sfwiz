@@ -87,6 +87,11 @@ export class AgentLoop extends EventEmitter {
     return super.on(event as string, listener as (...args: unknown[]) => void);
   }
 
+  abort(): void {
+    this.abortController.abort();
+    this.removeAllListeners();
+  }
+
   setOrg(org: OrgHandle | null): void {
     this.ctx = { ...this.ctx, org };
   }
@@ -101,8 +106,8 @@ export class AgentLoop extends EventEmitter {
     try {
       return await this._runInner(initialMessages);
     } catch (err) {
-      // Emit turn:done('') so TUI clears the thinking/streaming indicator on fatal errors.
-      this.emit('turn:done', '');
+      // Emit turn:done('', []) so TUI clears the thinking/streaming indicator on fatal errors.
+      this.emit('turn:done', '', []);
       throw err;
     }
   }
@@ -137,7 +142,6 @@ export class AgentLoop extends EventEmitter {
         { signal: this.abortController.signal },
       );
 
-      let streamStarted = false;
       let assistantText = '';
       const toolCalls: Array<{ id: string; name: string; input: string }> = [];
       let currentTool: { id: string; name: string; input: string } | null = null;
@@ -154,11 +158,8 @@ export class AgentLoop extends EventEmitter {
           }
         } else if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') {
-            if (!streamStarted) {
-              this.emit('turn:stream', event.delta.text);
-              streamStarted = true;
-            }
             assistantText += event.delta.text;
+            this.emit('turn:stream', event.delta.text);
           } else if (event.delta.type === 'input_json_delta' && currentTool) {
             currentTool.input += event.delta.partial_json;
           }
@@ -335,7 +336,7 @@ export class AgentLoop extends EventEmitter {
       messages.push({ role: 'user', content: toolResultContent });
     }
 
-    this.emit('turn:done', finalText);
+    this.emit('turn:done', finalText, messages);
     return finalText;
   }
 }

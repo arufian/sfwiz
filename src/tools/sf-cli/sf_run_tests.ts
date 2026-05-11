@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { spawnSync } from 'child_process';
 import type { Tool, ToolContext } from '~/tools/types';
+import { runSfJson } from '~/tools/sf-cli/run-sf';
 
 const Params = z.object({
   targetOrg: z.string().optional(),
@@ -23,12 +23,9 @@ export const sfRunTests: Tool<typeof Params> = {
     if (args.outputDir) extra.push('--output-dir', args.outputDir);
     if (args.classNames?.length) extra.push('--class-names', args.classNames.join(','));
 
-    const result = spawnSync(
-      'sf',
+    return runSfJson(
       ['apex', 'run', 'test', '--target-org', org, '--test-level', args.testLevel, '--json', ...extra],
-      { cwd: ctx.session.projectRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 5 * 60 * 1000 },
+      { cwd: ctx.session.projectRoot, timeoutMs: 5 * 60_000 },
     );
-    if (result.error) throw result.error;
-    return JSON.parse(result.stdout || '{}') as unknown;
   },
 };
