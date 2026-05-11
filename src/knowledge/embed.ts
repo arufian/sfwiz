@@ -28,16 +28,20 @@ export function runEmbed(collection: CollectionName, opts: EmbedOptions = {}): P
     let currentItem = '';
 
     const parseLine = (line: string) => {
-      // Parse patterns like "Embedding 15/243: Database.update"
-      const progressMatch = line.match(/(\d+)\/(\d+)[:\s]+(.+)/);
-      if (progressMatch) {
-        done = parseInt(progressMatch[1]!, 10);
-        total = parseInt(progressMatch[2]!, 10);
-        currentItem = progressMatch[3]!.trim();
-        learnBus.emit('embed:progress', { kind: 'embed:progress', collection, done, total, currentItem });
-        return;
+      // "15/243: item", "[15/243] item", "(15/243) item", "15 of 243 item"
+      const slashMatch = line.match(/[\[(]?(\d+)[\s/](?:of\s)?(\d+)[)\]:\s]+(.+)?/);
+      if (slashMatch) {
+        const d = parseInt(slashMatch[1]!, 10);
+        const t = parseInt(slashMatch[2]!, 10);
+        if (t > 0) {
+          done = d;
+          total = t;
+          currentItem = (slashMatch[3] ?? '').trim();
+          learnBus.emit('embed:progress', { kind: 'embed:progress', collection, done, total, currentItem });
+          return;
+        }
       }
-      // Parse percentage-only: "48%"
+      // "48%" — only useful if we already know total
       const pctMatch = line.match(/(\d+)%/);
       if (pctMatch && total > 0) {
         const pct = parseInt(pctMatch[1]!, 10);

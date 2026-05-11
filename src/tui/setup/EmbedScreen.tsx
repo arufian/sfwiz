@@ -45,7 +45,7 @@ export function EmbedScreen({
         const pct = r.total > 0 ? Math.round((r.done / r.total) * 100) : 0;
         return (
           <text key={r.collection} fg={fg}>
-            {`  ${mark} ${r.collection.padEnd(12)} ${renderBar(pct, 18)}  ${r.done}/${r.total || '?'}  ${(r.currentItem || r.error || '').slice(0, 22)}`}
+            {`  ${mark} ${r.collection.padEnd(12)} ${renderBar(pct, 18)}  ${r.status === 'done' && r.total === 0 ? 'done' : `${r.done}/${r.total || '?'}`}  ${(r.currentItem || r.error || '').slice(0, 22)}`}
           </text>
         );
       })}
